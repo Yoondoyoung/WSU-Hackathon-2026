@@ -1,10 +1,12 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
-import Map, { Source, Layer, Marker, Popup } from 'react-map-gl/mapbox';
+import { useRef, useState, useEffect, useCallback, memo } from 'react';
+import Map, { Source, Layer, Marker, Popup, type MapRef } from 'react-map-gl/mapbox';
 import type { LayerProps } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import type { MapViewMode, OverlayType } from '../../types/map';
 import type { Property } from '../../types/property';
 import { fetchOverlay } from '../../services/api';
+import { formatPrice } from '../../utils/formatters';
+import { colors } from '../../design';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
@@ -16,12 +18,13 @@ const MAP_STYLES: Record<MapViewMode, string> = {
   '3d': 'mapbox://styles/mapbox/dark-v11',
 };
 
+// Heatmap color ramps aligned with design.ts
 const OVERLAY_COLORS: Record<OverlayType, string[]> = {
-  crime: ['rgba(0,0,0,0)', '#1e40af', '#f59e0b', '#ef4444'],
-  schools: ['rgba(0,0,0,0)', '#166534', '#16a34a', '#22c55e'],
-  population: ['rgba(0,0,0,0)', '#92400e', '#d97706', '#f59e0b'],
-  noise: ['rgba(0,0,0,0)', '#4c1d95', '#7c3aed', '#a855f7'],
-  structures: ['rgba(0,0,0,0)', '#0ea5e9', '#0284c7', '#0369a1'],
+  crime:      ['rgba(0,0,0,0)', '#7f1d1d', '#ff4060', colors.red],
+  schools:    ['rgba(0,0,0,0)', '#064e3b', '#00b862', colors.emerald],
+  population: ['rgba(0,0,0,0)', '#3b2000', '#d47f00', colors.yellow],
+  noise:      ['rgba(0,0,0,0)', '#2e1065', '#7c3aed', '#c084fc'],
+  structures: ['rgba(0,0,0,0)', '#0c3f5c', '#0090c8', colors.cyan],
 };
 
 function heatmapLayer(id: OverlayType): LayerProps {
@@ -32,7 +35,7 @@ function heatmapLayer(id: OverlayType): LayerProps {
     paint: {
       'heatmap-weight': ['get', 'intensity'],
       'heatmap-radius': 40,
-      'heatmap-opacity': 0.75,
+      'heatmap-opacity': 0.72,
       'heatmap-color': [
         'interpolate',
         ['linear'],
@@ -52,6 +55,7 @@ interface Props {
   properties: Property[];
   selectedId: string | null;
   onSelectProperty: (id: string) => void;
+  onMarkerScreenPosition?: (pos: { x: number; y: number } | null) => void;
 }
 
 interface CrimePopupData {
@@ -63,8 +67,103 @@ interface CrimePopupData {
   date?: string;
 }
 
-export function MapView({ viewMode, activeOverlays, properties, selectedId, onSelectProperty }: Props) {
-  const mapRef = useRef(null);
+function GlowMarker({
+  property,
+  selected,
+  onClick,
+}: {
+  property: Property;
+  selected: boolean;
+  onClick: () => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+  const photo = property.photos?.[0] || property.imageUrl;
+
+  return (
+    <div
+      className="relative cursor-pointer"
+      style={{ zIndex: hovered || selected ? 100 : 1 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      {/* Outer pulse ring — only when not selected */}
+      {!selected && (
+        <div
+          className="absolute rounded-full animate-ping"
+          style={{
+            width: 20,
+            height: 20,
+            top: -4,
+            left: -4,
+            background: `rgba(0,200,255,0.2)`,
+          }}
+        />
+      )}
+
+      {/* Dot */}
+      <div
+        style={{
+          width: selected ? 18 : 12,
+          height: selected ? 18 : 12,
+          borderRadius: '50%',
+          background: selected ? colors.cyanLight : colors.cyan,
+          boxShadow: selected
+            ? `0 0 0 3px rgba(0,200,255,0.28), 0 0 20px rgba(0,200,255,0.7)`
+            : `0 0 12px rgba(0,200,255,0.5)`,
+          transition: 'all 0.2s ease',
+          transform: hovered && !selected ? 'scale(1.4)' : 'scale(1)',
+        }}
+      />
+
+      {/* Hover tooltip */}
+      {hovered && !selected && (
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            bottom: 22,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 200,
+            padding: 10,
+            zIndex: 9999,
+            background: colors.bgTooltip,
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: `1px solid ${colors.border}`,
+            borderRadius: 12,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          }}
+        >
+          {photo && (
+            <img
+              src={photo}
+              alt={property.streetAddress}
+              className="w-full rounded-lg mb-2 object-cover"
+              style={{ height: 90 }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          )}
+          <p className="font-bold text-sm leading-tight" style={{ color: colors.cyan }}>
+            {formatPrice(property.price)}
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: colors.whiteMuted }}>
+            {property.beds}bd · {property.baths}ba · {property.sqft.toLocaleString()} sqft
+          </p>
+          <p className="text-[10px] mt-0.5 truncate" style={{ color: colors.whiteSubtle }}>
+            {property.streetAddress}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSelectProperty, onMarkerScreenPosition }: Props) {
+  const mapRef = useRef<MapRef>(null);
   const [overlayData, setOverlayData] = useState<Record<string, GeoJSON.FeatureCollection>>({});
   const [crimePopup, setCrimePopup] = useState<CrimePopupData | null>(null);
   const structuresTileUrl =
@@ -81,6 +180,45 @@ export function MapView({ viewMode, activeOverlays, properties, selectedId, onSe
   useEffect(() => {
     setViewState((prev) => ({ ...prev, pitch: viewMode === '3d' ? 60 : 0 }));
   }, [viewMode]);
+
+  // Fly to selected property
+  useEffect(() => {
+    if (selectedId && mapRef.current) {
+      const property = properties.find((p) => p.id === selectedId);
+      if (property) {
+        mapRef.current.flyTo({
+          center: [property.coordinates[0], property.coordinates[1]],
+          zoom: 15,
+          duration: 450,
+          essential: true,
+          offset: [-180, 0],
+        });
+      }
+    }
+  }, [selectedId, properties]);
+
+  // rAF loop: report selected marker screen position
+  useEffect(() => {
+    if (!onMarkerScreenPosition) return;
+    const cb = onMarkerScreenPosition;
+    let rafId = 0;
+    const property = selectedId ? properties.find((p) => p.id === selectedId) : null;
+
+    function tick() {
+      if (property && mapRef.current) {
+        const map = mapRef.current.getMap();
+        if (map) {
+          const pt = map.project([property.coordinates[0], property.coordinates[1]]);
+          cb({ x: pt.x, y: pt.y });
+        }
+      } else {
+        cb(null);
+      }
+      rafId = requestAnimationFrame(tick);
+    }
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [selectedId, properties, onMarkerScreenPosition]);
 
   // Fetch overlay GeoJSON on toggle
   useEffect(() => {
@@ -107,14 +245,14 @@ export function MapView({ viewMode, activeOverlays, properties, selectedId, onSe
     const coords = feature.geometry?.coordinates;
     if (!Array.isArray(coords) || coords.length < 2) return;
 
-    const properties = feature.properties ?? {};
+    const props = feature.properties ?? {};
     setCrimePopup({
       longitude: coords[0],
       latitude: coords[1],
-      crimeType: properties.crime_type,
-      crime: properties.crime,
-      division: properties.division,
-      date: properties.date,
+      crimeType: props.crime_type,
+      crime: props.crime,
+      division: props.division,
+      date: props.date,
     });
   }, []);
 
@@ -138,28 +276,9 @@ export function MapView({ viewMode, activeOverlays, properties, selectedId, onSe
               type="circle"
               minzoom={12}
               paint={{
-                'circle-radius': [
-                  'interpolate',
-                  ['linear'],
-                  ['zoom'],
-                  12, 2,
-                  15, 3,
-                  18, 4,
-                ],
-                'circle-color': [
-                  'match',
-                  ['get', 'crime_type'],
-                  'Violent', '#ef4444',
-                  '#f59e0b',
-                ],
-                'circle-opacity': [
-                  'interpolate',
-                  ['linear'],
-                  ['zoom'],
-                  12, 0.25,
-                  14, 0.45,
-                  18, 0.8,
-                ],
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2, 15, 3, 18, 4],
+                'circle-color': ['match', ['get', 'crime_type'], 'Violent', '#ef4444', '#f59e0b'],
+                'circle-opacity': ['interpolate', ['linear'], ['zoom'], 12, 0.25, 14, 0.45, 18, 0.8],
                 'circle-stroke-color': '#111827',
                 'circle-stroke-width': 0.5,
               }}
@@ -167,7 +286,7 @@ export function MapView({ viewMode, activeOverlays, properties, selectedId, onSe
           </Source>
         )}
 
-        {/* Structures vector tiles: show building shapes only when zoomed in */}
+        {/* Structures vector tiles */}
         {activeOverlays.has('structures') && (
           <>
             {overlayData.structures && (
@@ -177,14 +296,7 @@ export function MapView({ viewMode, activeOverlays, properties, selectedId, onSe
                   type="circle"
                   maxzoom={14}
                   paint={{
-                    'circle-radius': [
-                      'interpolate',
-                      ['linear'],
-                      ['zoom'],
-                      10, 1.2,
-                      12, 1.8,
-                      14, 2.4,
-                    ],
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 12, 1.8, 14, 2.4],
                     'circle-color': '#22d3ee',
                     'circle-opacity': 0.35,
                   }}
@@ -206,23 +318,15 @@ export function MapView({ viewMode, activeOverlays, properties, selectedId, onSe
                 minzoom={13}
                 paint={{
                   'fill-color': [
-                    'match',
-                    ['get', 'OCC_CLS'],
-                    'Residential', '#22c55e', // Green
-                    'Government', '#3b82f6', // Blue
-                    'Commercial', '#ef4444', // Red
-                    'Education', '#facc15', // Yellow
-                    'Industrial', '#6b7280', // Gray
-                    '#4b5563', // Dark Gray
+                    'match', ['get', 'OCC_CLS'],
+                    'Residential', '#22c55e',
+                    'Government', '#3b82f6',
+                    'Commercial', '#ef4444',
+                    'Education', '#facc15',
+                    'Industrial', '#6b7280',
+                    '#4b5563',
                   ],
-                  'fill-opacity': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    13, 0.04,
-                    15, 0.1,
-                    18, 0.18,
-                  ],
+                  'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.04, 15, 0.1, 18, 0.18],
                 }}
               />
               <Layer
@@ -233,38 +337,23 @@ export function MapView({ viewMode, activeOverlays, properties, selectedId, onSe
                 minzoom={14}
                 paint={{
                   'line-color': [
-                    'match',
-                    ['get', 'OCC_CLS'],
-                    'Residential', '#15803d', // Green
-                    'Government', '#1d4ed8', // Blue
-                    'Commercial', '#b91c1c', // Red
-                    'Education', '#ca8a04', // Yellow
-                    'Industrial', '#374151', // Gray
-                    '#1f2937', // Dark Gray
+                    'match', ['get', 'OCC_CLS'],
+                    'Residential', '#15803d',
+                    'Government', '#1d4ed8',
+                    'Commercial', '#b91c1c',
+                    'Education', '#ca8a04',
+                    'Industrial', '#374151',
+                    '#1f2937',
                   ],
-                  'line-opacity': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    14, 0.25,
-                    16, 0.6,
-                    19, 0.9,
-                  ],
-                  'line-width': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    14, 0.4,
-                    16, 0.9,
-                    19, 1.6,
-                  ],
+                  'line-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.25, 16, 0.6, 19, 0.9],
+                  'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 16, 0.9, 19, 1.6],
                 }}
               />
             </Source>
           </>
         )}
 
-        {/* Heatmap overlays */}
+        {/* Other heatmap overlays */}
         {Array.from(activeOverlays).map((overlay) =>
           overlay !== 'structures' && overlay !== 'crime' && overlayData[overlay] ? (
             <Source key={overlay} id={`source-${overlay}`} type="geojson" data={overlayData[overlay]}>
@@ -281,48 +370,33 @@ export function MapView({ viewMode, activeOverlays, properties, selectedId, onSe
             onClose={() => setCrimePopup(null)}
             closeOnClick={false}
           >
-            <div className="text-xs leading-relaxed min-w-44 text-black">
-              <p><strong>Type:</strong> {crimePopup.crimeType || 'Unknown'}</p>
-              <p><strong>Crime:</strong> {crimePopup.crime || 'Unknown'}</p>
-              <p><strong>Division:</strong> {crimePopup.division || 'Unknown'}</p>
-              <p><strong>Date:</strong> {crimePopup.date || 'Unknown'}</p>
+            <div className="text-xs leading-relaxed min-w-44">
+              <p className="font-semibold mb-1" style={{ color: colors.cyan }}>{crimePopup.crimeType || 'Unknown'}</p>
+              <p><span style={{ color: colors.whiteSubtle }}>Crime:</span> {crimePopup.crime || 'Unknown'}</p>
+              <p><span style={{ color: colors.whiteSubtle }}>Division:</span> {crimePopup.division || 'Unknown'}</p>
+              <p><span style={{ color: colors.whiteSubtle }}>Date:</span> {crimePopup.date || 'Unknown'}</p>
             </div>
           </Popup>
         )}
 
-        {/* Property markers */}
+        {/* Glowing property markers */}
         {properties.map((property) => (
           <Marker
             key={property.id}
             longitude={property.coordinates[0]}
             latitude={property.coordinates[1]}
-            anchor="bottom"
-            onClick={() => handleMarkerClick(property.id)}
+            anchor="center"
           >
-            <div
-              className={`cursor-pointer transition-all ${
-                selectedId === property.id ? 'scale-125' : 'hover:scale-110'
-              }`}
-              title={property.address}
-            >
-              <div
-                className={`px-2 py-1 rounded-full text-xs font-bold shadow-lg border ${
-                  selectedId === property.id
-                    ? 'bg-[#6366f1] border-[#818cf8] text-white'
-                    : 'bg-[#1a1a2e] border-[#2d2d4a] text-[#e2e2f0]'
-                }`}
-              >
-                ${Math.round(property.price / 1000)}k
-              </div>
-              <div
-                className={`w-0 h-0 mx-auto border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent ${
-                  selectedId === property.id ? 'border-t-[#6366f1]' : 'border-t-[#1a1a2e]'
-                }`}
-              />
-            </div>
+            <GlowMarker
+              property={property}
+              selected={selectedId === property.id}
+              onClick={() => handleMarkerClick(property.id)}
+            />
           </Marker>
         ))}
       </Map>
     </div>
   );
 }
+
+export const MapView = memo(MapViewInner);

@@ -8,6 +8,7 @@ interface Props {
   properties: Property[];
   selectedId: string | null;
   onSelectProperty: (id: string) => void;
+  onMarkerScreenPosition?: (pos: { x: number; y: number } | null) => void;
 }
 
 export function CenterPanel(props: Props) {
