@@ -117,8 +117,10 @@ function ExpandedDetail({ property }: { property: Property }) {
   }, [property.id, property.price]);
 
   const photos = property.photos.length > 0 ? property.photos : [property.imageUrl];
-  const prevPhoto = () => setPhotoIdx((i) => (i - 1 + photos.length) % photos.length);
-  const nextPhoto = () => setPhotoIdx((i) => (i + 1) % photos.length);
+  const photoCount = photos.length;
+  const slidePct = photoCount > 0 ? (photoIdx / photoCount) * 100 : 0;
+  const prevPhoto = () => setPhotoIdx((i) => (i - 1 + photoCount) % photoCount);
+  const nextPhoto = () => setPhotoIdx((i) => (i + 1) % photoCount);
   const handlePredict = (e: React.FormEvent) => { e.preventDefault(); predict(computePayload(fields, property)); };
   const set = (key: keyof typeof FIELD_DEFAULTS) => (v: number) => setFields((prev) => ({ ...prev, [key]: v }));
 
@@ -126,21 +128,90 @@ function ExpandedDetail({ property }: { property: Property }) {
   const hasQuietZone = property.flexText?.toLowerCase().includes('quiet');
 
   return (
-    <div className="mt-2">
-      {/* Hero image */}
-      <div className="relative" style={{ height: 180, borderRadius: 12, overflow: 'hidden' }}>
-        <img src={photos[photoIdx]} alt={property.streetAddress} className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/360x180/0a1223/00c8ff?text=No+Image'; }} />
-        <div className="absolute inset-x-0 bottom-0" style={{ height: 60, background: `linear-gradient(to top, ${colors.bgPanelDense}, transparent)` }} />
-        {photos.length > 1 && (
+    // Clicks here must not bubble to CompactCard (would toggle selection and break carousel)
+    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+      {/* Hero carousel — horizontal slide */}
+      <div className="relative w-full rounded-xl overflow-hidden bg-black/30" style={{ height: 180 }}>
+        <div
+          className="flex h-full"
+          style={{
+            width: `${photoCount * 100}%`,
+            transform: `translateX(-${slidePct}%)`,
+            transition: 'transform 0.38s cubic-bezier(0.32, 0.72, 0, 1)',
+            willChange: 'transform',
+          }}
+        >
+          {photos.map((src, i) => (
+            <div
+              key={i}
+              className="h-full flex-shrink-0"
+              style={{ width: `${100 / photoCount}%` }}
+            >
+              <img
+                src={src}
+                alt=""
+                className="w-full h-full object-cover select-none pointer-events-none"
+                draggable={false}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = 'https://placehold.co/360x180/0a1223/00c8ff?text=No+Image';
+                }}
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="absolute inset-x-0 bottom-0 pointer-events-none" style={{ height: 72, background: `linear-gradient(to top, ${colors.bgPanelDense}, transparent)` }} />
+
+        {photoCount > 1 && (
+          <span
+            className="absolute top-2 right-2 z-[2] text-[10px] font-bold tabular-nums px-2 py-0.5 rounded-md pointer-events-none"
+            style={{ ...glass.pillSmall, color: colors.white, letterSpacing: '0.02em' }}
+          >
+            {photoIdx + 1} / {photoCount}
+          </span>
+        )}
+
+        {photoCount > 1 && (
           <>
-            <button onClick={prevPhoto} className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center" style={{ ...glass.pillSmall, color: colors.white }}><ChevronLeft size={13} /></button>
-            <button onClick={nextPhoto} className="absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center" style={{ ...glass.pillSmall, color: colors.white }}><ChevronRight size={13} /></button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); prevPhoto(); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center z-[2]"
+              style={{ ...glass.pillSmall, color: colors.white }}
+              aria-label="Previous photo"
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); nextPhoto(); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center z-[2]"
+              style={{ ...glass.pillSmall, color: colors.white }}
+              aria-label="Next photo"
+            >
+              <ChevronRight size={15} />
+            </button>
           </>
         )}
-        {photos.length > 1 && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 items-center">
-            {photos.slice(0, 6).map((_, i) => (
-              <button key={i} onClick={() => setPhotoIdx(i)} style={{ width: i === photoIdx ? 16 : 5, height: 5, borderRadius: 3, background: i === photoIdx ? colors.cyan : colors.whiteSubtle, boxShadow: i === photoIdx ? `0 0 4px ${colors.cyan}` : 'none', transition: 'all 0.2s' }} />
+
+        {photoCount > 1 && (
+          <div className="absolute bottom-2 left-1/2 z-[2] flex max-w-[calc(100%-1rem)] -translate-x-1/2 gap-1 items-center justify-center overflow-x-auto px-1 py-0.5 scrollbar-none [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {photos.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setPhotoIdx(i); }}
+                className="flex-shrink-0 transition-all duration-200"
+                style={{
+                  width: i === photoIdx ? 18 : 6,
+                  height: 6,
+                  borderRadius: 3,
+                  background: i === photoIdx ? colors.cyan : colors.whiteSubtle,
+                  boxShadow: i === photoIdx ? `0 0 6px ${colors.cyan}` : 'none',
+                }}
+                aria-label={`Photo ${i + 1}`}
+                aria-current={i === photoIdx ? 'true' : undefined}
+              />
             ))}
           </div>
         )}
@@ -172,7 +243,7 @@ function ExpandedDetail({ property }: { property: Property }) {
 
       {/* Mortgage predictor (collapsible) */}
       <div className="mt-1" style={{ borderTop: `1px solid ${colors.border}` }}>
-        <button onClick={() => setMortgageOpen(!mortgageOpen)} className="flex items-center justify-between w-full px-1 py-2.5">
+        <button type="button" onClick={() => setMortgageOpen(!mortgageOpen)} className="flex items-center justify-between w-full px-1 py-2.5">
           <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: colors.whiteMuted }}>AI Mortgage Predictor</span>
           <ChevronDown size={14} style={{ color: colors.whiteMuted, transform: mortgageOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.3s' }} />
         </button>
