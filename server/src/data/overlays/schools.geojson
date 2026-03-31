@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8490, 40.7620] }, "properties": { "intensity": 0.95, "name": "University of Utah", "type": "university", "rating": 9 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8750, 40.7520] }, "properties": { "intensity": 0.85, "name": "East High School", "type": "high", "rating": 8 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8910, 40.7680] }, "properties": { "intensity": 0.7, "name": "West High School", "type": "high", "rating": 7 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8620, 40.7450] }, "properties": { "intensity": 0.8, "name": "Highland High School", "type": "high", "rating": 8 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8530, 40.7250] }, "properties": { "intensity": 0.75, "name": "Nibley Park Elementary", "type": "elementary", "rating": 7 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8800, 40.7700] }, "properties": { "intensity": 0.65, "name": "Ensign Elementary", "type": "elementary", "rating": 6 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8700, 40.7350] }, "properties": { "intensity": 0.8, "name": "Hawthorne Elementary", "type": "elementary", "rating": 8 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8400, 40.7550] }, "properties": { "intensity": 0.9, "name": "Bonneville Elementary", "type": "elementary", "rating": 9 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.9000, 40.7550] }, "properties": { "intensity": 0.5, "name": "Riley Elementary", "type": "elementary", "rating": 5 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8850, 40.7420] }, "properties": { "intensity": 0.7, "name": "Clayton Middle School", "type": "middle", "rating": 7 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8580, 40.7580] }, "properties": { "intensity": 0.85, "name": "Bryant Middle School", "type": "middle", "rating": 8 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.9100, 40.7480] }, "properties": { "intensity": 0.45, "name": "Jackson Elementary", "type": "elementary", "rating": 5 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8350, 40.7100] }, "properties": { "intensity": 0.88, "name": "Evergreen Junior High", "type": "middle", "rating": 9 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8650, 40.7800] }, "properties": { "intensity": 0.72, "name": "Wasatch Elementary", "type": "elementary", "rating": 7 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8920, 40.7300] }, "properties": { "intensity": 0.6, "name": "South High School", "type": "high", "rating": 6 } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8300, 40.7400] }, "properties": { "intensity": 0.92, "name": "Rowland Hall", "type": "high", "rating": 10 } }
+  ]
+}

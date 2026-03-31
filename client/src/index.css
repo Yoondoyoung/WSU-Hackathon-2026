@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+@theme {
+  --color-dashboard: #0f0f1a;
+  --color-panel: #1a1a2e;
+  --color-card: #25253e;
+  --color-panel-border: #2d2d4a;
+  --color-text-primary: #e2e2f0;
+  --color-text-secondary: #8888a8;
+  --color-accent: #6366f1;
+  --color-accent-hover: #818cf8;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--color-dashboard);
+  color: var(--color-text-primary);
+  overflow: hidden;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+}
+
+/* Mapbox GL overrides */
+.mapboxgl-map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-panel);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-panel-border);
+  border-radius: 3px;
+}

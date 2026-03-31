@@ -1,0 +1,25 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8910, 40.7608] }, "properties": { "intensity": 0.9, "label": "Downtown Core" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8950, 40.7650] }, "properties": { "intensity": 0.75, "label": "Pioneer Park" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.9020, 40.7580] }, "properties": { "intensity": 0.8, "label": "Rio Grande" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8850, 40.7550] }, "properties": { "intensity": 0.6, "label": "Central City" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8780, 40.7490] }, "properties": { "intensity": 0.5, "label": "Liberty Park Area" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.9100, 40.7700] }, "properties": { "intensity": 0.65, "label": "North Temple Corridor" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8830, 40.7720] }, "properties": { "intensity": 0.4, "label": "Capitol Hill" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8700, 40.7600] }, "properties": { "intensity": 0.35, "label": "East Central" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8600, 40.7500] }, "properties": { "intensity": 0.3, "label": "Yalecrest" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8400, 40.7550] }, "properties": { "intensity": 0.2, "label": "Foothill" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.9200, 40.7550] }, "properties": { "intensity": 0.7, "label": "Poplar Grove" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8900, 40.7450] }, "properties": { "intensity": 0.55, "label": "South Central" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8500, 40.7300] }, "properties": { "intensity": 0.25, "label": "Sugar House" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.9150, 40.7400] }, "properties": { "intensity": 0.6, "label": "Glendale" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8350, 40.7650] }, "properties": { "intensity": 0.15, "label": "University Area" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8980, 40.7350] }, "properties": { "intensity": 0.45, "label": "Ballpark" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8750, 40.7800] }, "properties": { "intensity": 0.3, "label": "The Avenues" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.9300, 40.7650] }, "properties": { "intensity": 0.5, "label": "Fairpark" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8650, 40.7150] }, "properties": { "intensity": 0.2, "label": "Millcreek" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [-111.8450, 40.6950] }, "properties": { "intensity": 0.15, "label": "Olympus Cove" } }
+  ]
+}
