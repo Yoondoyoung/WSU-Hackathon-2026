@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import proj4 from 'proj4';
@@ -154,19 +154,21 @@ function loadCrimeGeoJSON() {
 
 function loadStructuresTileIndex() {
   if (structuresTileIndex) return structuresTileIndex;
-  const filePath = join(__dirname, '..', 'data', 'overlays', 'structures_polygons.geojson');
+  const fullPath = join(__dirname, '..', 'data', 'overlays', 'structures_polygons.full.geojson');
+  const fallbackPath = join(__dirname, '..', 'data', 'overlays', 'structures_polygons.geojson');
+  const filePath = existsSync(fullPath) ? fullPath : fallbackPath;
   const data = JSON.parse(readFileSync(filePath, 'utf-8'));
   structuresTileIndex = geojsonvt(data, {
-    maxZoom: 16,
-    indexMaxZoom: 13,
+    maxZoom: 18,
+    indexMaxZoom: 15,
     indexMaxPoints: 0,
-    tolerance: 3,
+    tolerance: 1,
     extent: 4096,
-    buffer: 64,
+    buffer: 128,
     lineMetrics: false,
     generateId: false,
   });
-  console.log('Loaded structures vector-tile index from structures_polygons.geojson');
+  console.log(`Loaded structures vector-tile index from ${filePath.split('/').pop()}`);
   return structuresTileIndex;
 }
 
