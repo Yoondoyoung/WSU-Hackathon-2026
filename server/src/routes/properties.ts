@@ -1,74 +1,222 @@
 import { Router } from 'express';
-import properties from '../data/properties.json' with { type: 'json' };
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import proj4 from 'proj4';
+import geojsonvt from 'geojson-vt';
+import vtpbf from 'vt-pbf';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// EPSG:3566 (NAD83 / Utah Central, ft) → WGS84
 const UTAH_CENTRAL =
   '+proj=lcc +lat_0=38.3333333333333 +lon_0=-111.5 +lat_1=40.65 +lat_2=39.0166666666667 +x_0=500000.00001016 +y_0=2000000.00001016 +datum=NAD83 +units=us-ft +no_defs';
 
 export const propertiesRouter = Router();
 
-// Cache processed crime GeoJSON
+function normalizeArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter((item): item is string => Boolean(item));
+}
+
+function extractPhotoUrls(listing: any): string[] {
+  const detailImages = Array.isArray(listing.detail?.images) ? listing.detail.images : [];
+  const preferredDetailImages = detailImages.filter(
+    (img: unknown) => typeof img === 'string' && (img.includes('-p_f.') || img.includes('-p_d.') || img.includes('-cc_ft_768.'))
+  ) as string[];
+
+  if (preferredDetailImages.length > 0) {
+    return Array.from(new Set(preferredDetailImages)).slice(0, 20);
+  }
+
+  const carouselPhotoData = Array.isArray(listing.raw?.carouselPhotosComposable?.photoData)
+    ? listing.raw.carouselPhotosComposable.photoData
+    : [];
+
+  const carouselPhotos: string[] = carouselPhotoData
+    .map((photo: any) =>
+      typeof photo?.photoKey === 'string'
+        ? `https://photos.zillowstatic.com/fp/${photo.photoKey}-cc_ft_768.jpg`
+        : null
+    )
+    .filter((url: string | null): url is string => Boolean(url));
+
+  return Array.from(new Set<string>(carouselPhotos)).slice(0, 20);
+}
+
+// Load and transform enriched Zillow data
+function loadProperties() {
+  const filePath = join(__dirname, '..', 'data', 'houseList', 'salt-lake-city-for-sale.enriched.sample.json');
+  const raw = JSON.parse(readFileSync(filePath, 'utf-8'));
+
+  return raw.listings.map((l: any) => {
+    const det = l.detail || {};
+    const info = l.raw?.hdpData?.homeInfo || {};
+    const photos = extractPhotoUrls(l);
+    const latitude = typeof l.latitude === 'number' ? l.latitude : typeof info.latitude === 'number' ? info.latitude : 40.7608;
+    const longitude = typeof l.longitude === 'number' ? l.longitude : typeof info.longitude === 'number' ? info.longitude : -111.891;
+
+    return {
+      id: l.zpid,
+      address: l.address,
+      streetAddress: l.raw?.addressStreet || l.address.split(',')[0],
+      city: l.raw?.addressCity || 'Salt Lake City',
+      state: l.raw?.addressState || 'UT',
+      zip: l.raw?.addressZipcode || '',
+      price: l.price,
+      beds: l.beds,
+      baths: l.baths,
+      sqft: l.sqft,
+      yearBuilt: det.yearBuilt || 0,
+      coordinates: [longitude, latitude],
+      homeType: det.propertyTypeDimension || info.homeType || 'Unknown',
+      imageUrl: l.raw?.imgSrc || photos[0] || '',
+      photos,
+      detailUrl: det.detailUrl || l.detailUrl || '',
+      description: det.description || '',
+      lotSize: det.lotSize || null,
+      pricePerSqft: det.pricePerSquareFoot || null,
+      daysOnZillow: det.daysOnZillow || 0,
+      pageViews: det.pageViewCount || 0,
+      favorites: det.favoriteCount || 0,
+      heating: normalizeArray(det.heating),
+      cooling: normalizeArray(det.cooling),
+      parking: normalizeArray(det.parkingFeatures),
+      appliances: normalizeArray(det.appliances),
+      basement: det.basement || null,
+      constructionMaterials: normalizeArray(det.constructionMaterials),
+      brokerName: l.raw?.brokerName || det.brokerageName || '',
+      agentName: det.agentName || '',
+      agentPhone: det.agentPhone || '',
+      hoaFee: det.monthlyHoaFee || null,
+      zestimate: det.zestimate || null,
+      rentZestimate: det.rentZestimate || null,
+      schools: (det.schools || []).map((s: any) => ({
+        name: s.name || '',
+        rating: s.rating || 0,
+        distance: s.distance || 0,
+        level: s.level || s.grades || '',
+        type: s.type || s.grades || '',
+        link: s.link || '',
+      })),
+      priceHistory: (det.priceHistory || []).map((p: any) => ({
+        date: p.date || '',
+        event: p.event || '',
+        price: p.price || 0,
+        source: p.source || '',
+      })),
+      statusText: l.raw?.statusText || 'For Sale',
+      flexText: l.raw?.flexFieldText || '',
+    };
+  });
+}
+
+let cachedProperties: any[] | null = null;
+
+propertiesRouter.get('/', (_req, res) => {
+  if (!cachedProperties) {
+    const loadedProperties = loadProperties();
+    cachedProperties = loadedProperties;
+    console.log(`Loaded ${loadedProperties.length} properties from enriched Zillow data`);
+  }
+  const properties = cachedProperties ?? [];
+  res.json(properties);
+});
+
+// Overlay routes
 let crimeGeoJSON: object | null = null;
+let structuresTileIndex: any | null = null;
 
 function loadCrimeGeoJSON() {
   if (crimeGeoJSON) return crimeGeoJSON;
-
   const filePath = join(__dirname, '..', 'data', 'overlays', 'crime_slc.json');
   const raw = JSON.parse(readFileSync(filePath, 'utf-8'));
   const features = raw.layers[0].features;
-
-  const points = features
-    .map((f: { geometry: { x: number; y: number }; attributes: Record<string, unknown> }) => {
-      const [lng, lat] = proj4(UTAH_CENTRAL, 'EPSG:4326', [f.geometry.x, f.geometry.y]);
-      return {
-        type: 'Feature' as const,
-        geometry: { type: 'Point' as const, coordinates: [lng, lat] },
-        properties: {
-          intensity: f.attributes.crime_type === 'Violent' ? 1.0 : 0.6,
-          crime_type: f.attributes.crime_type,
-          crime: f.attributes.crime,
-          division: f.attributes.division,
-          date: f.attributes.date_t,
-        },
-      };
-    });
-
+  const points = features.map((f: any) => {
+    const [lng, lat] = proj4(UTAH_CENTRAL, 'EPSG:4326', [f.geometry.x, f.geometry.y]);
+    return {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [lng, lat] },
+      properties: {
+        intensity: f.attributes.crime_type === 'Violent' ? 1.0 : 0.6,
+        crime_type: f.attributes.crime_type,
+        crime: f.attributes.crime,
+        division: f.attributes.division,
+        date: f.attributes.date_t,
+      },
+    };
+  });
   crimeGeoJSON = { type: 'FeatureCollection', features: points };
-  console.log(`Loaded ${points.length} real crime incidents from crime_slc.json`);
+  console.log(`Loaded ${points.length} real crime incidents`);
   return crimeGeoJSON;
 }
 
-propertiesRouter.get('/', (_req, res) => {
-  res.json(properties);
+function loadStructuresTileIndex() {
+  if (structuresTileIndex) return structuresTileIndex;
+  const filePath = join(__dirname, '..', 'data', 'overlays', 'structures_polygons.geojson');
+  const data = JSON.parse(readFileSync(filePath, 'utf-8'));
+  structuresTileIndex = geojsonvt(data, {
+    maxZoom: 16,
+    indexMaxZoom: 13,
+    indexMaxPoints: 0,
+    tolerance: 3,
+    extent: 4096,
+    buffer: 64,
+    lineMetrics: false,
+    generateId: false,
+  });
+  console.log('Loaded structures vector-tile index from structures_polygons.geojson');
+  return structuresTileIndex;
+}
+
+propertiesRouter.get('/overlays/structures/tiles/:z/:x/:y.pbf', (req, res) => {
+  try {
+    const z = Number.parseInt(req.params.z, 10);
+    const x = Number.parseInt(req.params.x, 10);
+    const y = Number.parseInt(req.params.y, 10);
+
+    if ([z, x, y].some(Number.isNaN)) {
+      res.status(400).json({ error: 'Invalid tile coordinates' });
+      return;
+    }
+
+    const tileIndex = loadStructuresTileIndex();
+    const tile = tileIndex.getTile(z, x, y);
+
+    if (!tile) {
+      res.status(204).end();
+      return;
+    }
+
+    const buffer = vtpbf.fromGeojsonVt({ structures: tile });
+    res.setHeader('Content-Type', 'application/vnd.mapbox-vector-tile');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    console.error('Failed to generate structure vector tile:', error);
+    res.status(500).json({ error: 'Failed to generate structure vector tile' });
+  }
 });
 
 propertiesRouter.get('/overlays/:type', (req, res) => {
   const { type } = req.params;
-  const validTypes = ['crime', 'schools', 'population', 'noise'];
+  const validTypes = ['crime', 'schools', 'population', 'noise', 'structures'];
 
   if (!validTypes.includes(type)) {
-    res.status(400).json({ error: `Invalid overlay type. Must be one of: ${validTypes.join(', ')}` });
+    res.status(400).json({ error: `Invalid overlay type` });
     return;
   }
 
-  // Use real crime data from crime_slc.json
   if (type === 'crime') {
     try {
-      const data = loadCrimeGeoJSON();
-      res.json(data);
+      res.json(loadCrimeGeoJSON());
       return;
     } catch (e) {
-      console.error('Failed to load real crime data, falling back to mock:', e);
+      console.error('Failed to load real crime data:', e);
     }
   }
 
-  // Other overlays use mock geojson files
   try {
     const filePath = join(__dirname, '..', 'data', 'overlays', `${type}.geojson`);
     const data = JSON.parse(readFileSync(filePath, 'utf-8'));

@@ -10,9 +10,19 @@ export default function App() {
   const { mapState, setViewMode, toggleOverlay } = useMapState();
   const { properties, loading } = useProperties();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const handleSelectProperty = (id: string) => {
     setSelectedId((prev) => (prev === id ? null : id));
+  };
+
+  const handleOpenPropertyDetail = (id: string) => {
+    setSelectedId(id);
+    setDetailId(id);
+  };
+
+  const handleClosePropertyDetail = () => {
+    setDetailId(null);
   };
 
   return (
@@ -40,6 +50,9 @@ export default function App() {
           loading={loading}
           selectedId={selectedId}
           onSelect={handleSelectProperty}
+          detailId={detailId}
+          onOpenDetail={handleOpenPropertyDetail}
+          onCloseDetail={handleClosePropertyDetail}
         />
       }
     />

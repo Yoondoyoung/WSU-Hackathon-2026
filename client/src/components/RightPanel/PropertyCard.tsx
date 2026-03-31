@@ -1,12 +1,6 @@
-import { Bed, Bath, Square, Home, Building2, Layers } from 'lucide-react';
+import { Bed, Bath, Square, Clock, Eye, Heart } from 'lucide-react';
 import type { Property } from '../../types/property';
 import { formatPrice } from '../../utils/formatters';
-
-const TYPE_ICON: Record<Property['propertyType'], React.ElementType> = {
-  house: Home,
-  condo: Building2,
-  townhouse: Layers,
-};
 
 interface Props {
   property: Property;
@@ -15,8 +9,6 @@ interface Props {
 }
 
 export function PropertyCard({ property, selected, onClick }: Props) {
-  const TypeIcon = TYPE_ICON[property.propertyType];
-
   return (
     <div
       onClick={onClick}
@@ -26,58 +18,58 @@ export function PropertyCard({ property, selected, onClick }: Props) {
           : 'border-[#2d2d4a] bg-[#25253e] hover:border-[#6366f1]/50'
       }`}
     >
-      {/* Property Image */}
-      <div className="relative h-32 bg-[#2d2d4a] overflow-hidden">
-        <img
-          src={property.imageUrl}
-          alt={property.address}
+      <div className="relative h-36 bg-[#2d2d4a] overflow-hidden">
+        <img src={property.imageUrl} alt={property.streetAddress}
           className="w-full h-full object-cover"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src =
-              'https://placehold.co/400x300/25253e/6366f1?text=Property';
-          }}
-        />
-        <div className="absolute top-2 left-2">
-          <span className="bg-[#0f0f1a]/80 text-[#e2e2f0] text-xs px-2 py-1 rounded-md font-medium backdrop-blur-sm flex items-center gap-1">
-            <TypeIcon size={10} />
-            {property.propertyType}
+          onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/400x300/25253e/6366f1?text=No+Image'; }} />
+        <div className="absolute top-2 left-2 flex gap-1.5">
+          <span className="bg-[#0f0f1a]/80 text-[#e2e2f0] text-[10px] px-2 py-0.5 rounded-md font-medium backdrop-blur-sm">
+            {property.homeType}
           </span>
+          {property.flexText && (
+            <span className="bg-[#6366f1]/80 text-white text-[10px] px-2 py-0.5 rounded-md font-medium backdrop-blur-sm">
+              {property.flexText}
+            </span>
+          )}
         </div>
         <div className="absolute top-2 right-2">
-          <span className="bg-[#6366f1] text-white text-xs px-2 py-1 rounded-md font-bold">
-            {formatPrice(property.price)}
-          </span>
+          <span className="bg-[#6366f1] text-white text-xs px-2 py-1 rounded-md font-bold">{formatPrice(property.price)}</span>
+        </div>
+        <div className="absolute bottom-2 left-2 flex gap-2 text-[10px] text-white/80">
+          {property.daysOnZillow > 0 && (
+            <span className="flex items-center gap-0.5 bg-black/50 px-1.5 py-0.5 rounded backdrop-blur-sm">
+              <Clock size={9} /> {property.daysOnZillow}d
+            </span>
+          )}
+          {property.pageViews > 0 && (
+            <span className="flex items-center gap-0.5 bg-black/50 px-1.5 py-0.5 rounded backdrop-blur-sm">
+              <Eye size={9} /> {property.pageViews.toLocaleString()}
+            </span>
+          )}
+          {property.favorites > 0 && (
+            <span className="flex items-center gap-0.5 bg-black/50 px-1.5 py-0.5 rounded backdrop-blur-sm">
+              <Heart size={9} /> {property.favorites}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Property Details */}
       <div className="p-3">
-        <p className="text-[#e2e2f0] text-sm font-medium truncate">{property.address}</p>
-        <p className="text-[#8888a8] text-xs mb-2">
-          {property.city}, {property.state} {property.zip}
-        </p>
+        <p className="text-[#e2e2f0] text-sm font-medium truncate">{property.streetAddress}</p>
+        <p className="text-[#8888a8] text-xs mb-2">{property.city}, {property.state} {property.zip}</p>
 
         <div className="flex items-center gap-3 text-xs text-[#8888a8]">
-          <span className="flex items-center gap-1">
-            <Bed size={12} />
-            {property.beds} bd
-          </span>
-          <span className="flex items-center gap-1">
-            <Bath size={12} />
-            {property.baths} ba
-          </span>
-          <span className="flex items-center gap-1">
-            <Square size={12} />
-            {property.sqft.toLocaleString()} sqft
-          </span>
-          <span className="ml-auto text-[#8888a8]">Built {property.yearBuilt}</span>
+          <span className="flex items-center gap-1"><Bed size={12} />{property.beds} bd</span>
+          <span className="flex items-center gap-1"><Bath size={12} />{property.baths} ba</span>
+          <span className="flex items-center gap-1"><Square size={12} />{property.sqft.toLocaleString()} sqft</span>
+          {property.pricePerSqft && <span className="ml-auto">${property.pricePerSqft}/sqft</span>}
         </div>
       </div>
 
       {selected && (
         <div className="px-3 pb-3">
           <div className="h-px bg-[#2d2d4a] mb-2" />
-          <p className="text-[#6366f1] text-xs font-medium">✓ Selected for mortgage analysis</p>
+          <p className="text-[#6366f1] text-xs font-medium">Click again to open full details</p>
         </div>
       )}
     </div>

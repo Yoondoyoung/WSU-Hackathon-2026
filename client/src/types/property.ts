@@ -1,6 +1,7 @@
 export interface Property {
   id: string;
   address: string;
+  streetAddress: string;
   city: string;
   state: string;
   zip: string;
@@ -9,7 +10,48 @@ export interface Property {
   baths: number;
   sqft: number;
   yearBuilt: number;
-  imageUrl: string;
   coordinates: [number, number]; // [lng, lat]
-  propertyType: 'house' | 'condo' | 'townhouse';
+  homeType: string;
+  imageUrl: string;
+  photos: string[];
+  detailUrl: string;
+  // Detail fields
+  description: string;
+  lotSize: number | null;
+  pricePerSqft: number | null;
+  daysOnZillow: number;
+  pageViews: number;
+  favorites: number;
+  heating: string[];
+  cooling: string[];
+  parking: string[];
+  appliances: string[];
+  basement: string | null;
+  constructionMaterials: string[];
+  brokerName: string;
+  agentName: string;
+  agentPhone: string;
+  hoaFee: number | null;
+  zestimate: number | null;
+  rentZestimate: number | null;
+  schools: SchoolInfo[];
+  priceHistory: PriceHistoryItem[];
+  statusText: string;
+  flexText: string;
+}
+
+export interface SchoolInfo {
+  name: string;
+  rating: number;
+  distance: number;
+  level: string;
+  type: string;
+  link: string;
+}
+
+export interface PriceHistoryItem {
+  date: string;
+  event: string;
+  price: number;
+  source: string;
 }

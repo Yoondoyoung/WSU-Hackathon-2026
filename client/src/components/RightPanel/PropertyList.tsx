@@ -7,9 +7,10 @@ interface Props {
   loading: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  onOpenDetail: (id: string) => void;
 }
 
-export function PropertyList({ properties, loading, selectedId, onSelect }: Props) {
+export function PropertyList({ properties, loading, selectedId, onSelect, onOpenDetail }: Props) {
   if (loading) {
     return (
       <div className="space-y-3 p-4">
@@ -42,7 +43,7 @@ export function PropertyList({ properties, loading, selectedId, onSelect }: Prop
           key={p.id}
           property={p}
           selected={selectedId === p.id}
-          onClick={() => onSelect(p.id)}
+          onClick={() => (selectedId === p.id ? onOpenDetail(p.id) : onSelect(p.id))}
         />
       ))}
     </div>

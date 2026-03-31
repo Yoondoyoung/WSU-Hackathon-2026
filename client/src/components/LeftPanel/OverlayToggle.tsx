@@ -1,4 +1,4 @@
-import { ShieldAlert, GraduationCap, Users, Volume2 } from 'lucide-react';
+import { ShieldAlert, GraduationCap, Users, Volume2, Building2 } from 'lucide-react';
 import type { OverlayType } from '../../types/map';
 
 interface Props {
@@ -16,6 +16,7 @@ const OVERLAYS: {
   { type: 'schools', label: 'School Zones', Icon: GraduationCap, color: '#22c55e' },
   { type: 'population', label: 'Population Density', Icon: Users, color: '#f59e0b' },
   { type: 'noise', label: 'Noise Level', Icon: Volume2, color: '#a855f7' },
+  { type: 'structures', label: 'Building Footprints', Icon: Building2, color: '#0ea5e9' },
 ];
 
 export function OverlayToggle({ activeOverlays, onToggle }: Props) {
