@@ -5,7 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import type { MapViewMode, OverlayType } from '../../types/map';
 import type { Property } from '../../types/property';
 import { fetchOverlay } from '../../services/api';
-import { formatPrice, formatSqft } from '../../utils/formatters';
+import { formatPrice, formatPriceCompact, formatSqft } from '../../utils/formatters';
 import { crimeRiskLabel } from '../../utils/crimeRisk';
 import { colors, glass } from '../../design';
 
@@ -100,6 +100,7 @@ function GlowMarker({
 }) {
   const [hovered, setHovered] = useState(false);
   const photo = property.photos?.[0] || property.imageUrl;
+  const label = formatPriceCompact(property.price);
 
   return (
     <div
@@ -112,41 +113,40 @@ function GlowMarker({
         onClick();
       }}
     >
-      {/* Outer pulse ring — only when not selected */}
-      {!selected && (
-        <div
-          className="absolute rounded-full animate-ping"
-          style={{
-            width: 20,
-            height: 20,
-            top: -4,
-            left: -4,
-            background: `rgba(0,200,255,0.2)`,
-          }}
-        />
-      )}
-
-      {/* Dot */}
+      {/* Price pill */}
       <div
         style={{
-          width: selected ? 18 : 12,
-          height: selected ? 18 : 12,
-          borderRadius: '50%',
-          background: selected ? colors.cyanLight : colors.cyan,
+          padding: selected ? '4px 9px' : '3px 7px',
+          borderRadius: 20,
+          fontSize: selected ? 12 : 11,
+          fontWeight: 700,
+          letterSpacing: '0.01em',
+          whiteSpace: 'nowrap',
+          color: selected ? '#0a0f1a' : colors.cyan,
+          background: selected
+            ? colors.cyan
+            : 'rgba(0,200,255,0.12)',
+          border: `1.5px solid ${selected ? colors.cyan : 'rgba(0,200,255,0.45)'}`,
           boxShadow: selected
-            ? `0 0 0 3px rgba(0,200,255,0.28), 0 0 20px rgba(0,200,255,0.7)`
-            : `0 0 12px rgba(0,200,255,0.5)`,
-          transition: 'all 0.2s ease',
-          transform: hovered && !selected ? 'scale(1.4)' : 'scale(1)',
+            ? `0 0 0 3px rgba(0,200,255,0.22), 0 0 18px rgba(0,200,255,0.6)`
+            : hovered
+              ? `0 0 14px rgba(0,200,255,0.5)`
+              : `0 0 8px rgba(0,200,255,0.3)`,
+          transition: 'all 0.18s ease',
+          transform: hovered && !selected ? 'scale(1.08) translateY(-1px)' : 'scale(1)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
         }}
-      />
+      >
+        {label}
+      </div>
 
       {/* Hover tooltip */}
       {hovered && !selected && (
         <div
           className="absolute pointer-events-none"
           style={{
-            bottom: 22,
+            bottom: 'calc(100% + 8px)',
             left: '50%',
             transform: 'translateX(-50%)',
             width: 200,
@@ -187,6 +187,23 @@ function GlowMarker({
   );
 }
 
+interface ViewBounds {
+  minLng: number; maxLng: number; minLat: number; maxLat: number;
+}
+
+function getBoundsFromMap(map: ReturnType<MapRef['getMap']>, padFraction = 0.12): ViewBounds | null {
+  const b = map.getBounds();
+  if (!b) return null;
+  const lngPad = (b.getEast() - b.getWest()) * padFraction;
+  const latPad = (b.getNorth() - b.getSouth()) * padFraction;
+  return {
+    minLng: b.getWest() - lngPad,
+    maxLng: b.getEast() + lngPad,
+    minLat: b.getSouth() - latPad,
+    maxLat: b.getNorth() + latPad,
+  };
+}
+
 function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSelectProperty, onMarkerScreenPosition }: Props) {
   const mapRef = useRef<MapRef>(null);
   const [overlayData, setOverlayData] = useState<Record<string, GeoJSON.FeatureCollection>>({});
@@ -207,6 +224,7 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
     pitch: 0,
     bearing: 0,
   });
+  const [viewBounds, setViewBounds] = useState<ViewBounds | null>(null);
 
   // Update pitch when view mode changes
   useEffect(() => {
@@ -267,6 +285,18 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
     });
   }, [overlayIdsKey, activeOverlays]); // activeOverlays: forEach target; overlayIdsKey: stable trigger when set contents change
 
+  // Only render markers visible in the current viewport (+12% padding to avoid pop-in at edges).
+  // The selected marker is always included so it stays visible even after fly-to.
+  const visibleProperties = useMemo(() => {
+    if (!viewBounds) return properties;
+    const { minLng, maxLng, minLat, maxLat } = viewBounds;
+    return properties.filter((p) => {
+      if (p.id === selectedId) return true; // always show selected
+      const [lng, lat] = p.coordinates;
+      return lng >= minLng && lng <= maxLng && lat >= minLat && lat <= maxLat;
+    });
+  }, [properties, viewBounds, selectedId]);
+
   const handleMarkerClick = useCallback(
     (id: string) => {
       onSelectProperty(id);
@@ -320,7 +350,19 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
       <Map
         ref={mapRef}
         {...viewState}
-        onMove={(evt) => setViewState(evt.viewState)}
+        onMove={(evt) => {
+          setViewState(evt.viewState);
+          if (mapRef.current) {
+            const b = getBoundsFromMap(mapRef.current.getMap());
+            if (b) setViewBounds(b);
+          }
+        }}
+        onLoad={() => {
+          if (mapRef.current) {
+            const b = getBoundsFromMap(mapRef.current.getMap());
+            if (b) setViewBounds(b);
+          }
+        }}
         onClick={handleMapClick}
         interactiveLayerIds={[
           ...(activeOverlays.has('crime') ? ['crime-points'] : []),
@@ -486,8 +528,8 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
           </Popup>
         )}
 
-        {/* Glowing property markers */}
-        {properties.map((property) => (
+        {/* Glowing property markers — viewport-clipped for performance */}
+        {visibleProperties.map((property) => (
           <Marker
             key={property.id}
             longitude={property.coordinates[0]}
@@ -502,6 +544,21 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
           </Marker>
         ))}
       </Map>
+
+      {/* Viewport marker count badge */}
+      <div
+        className="absolute top-3 left-3 z-[11] pointer-events-none"
+        style={{
+          ...glass.pill,
+          borderRadius: 8,
+          padding: '5px 10px',
+          fontSize: 11,
+          color: colors.whiteMuted,
+          letterSpacing: '0.02em',
+        }}
+      >
+        {visibleProperties.length} of {properties.length} listings in view
+      </div>
 
       {/* Building footprints legend — fixed bottom-right of map (left of 360px panel on desktop) */}
       {activeOverlays.has('structures') && (
