@@ -1,19 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  ChevronLeft, ChevronRight, ChevronDown,
+  ChevronLeft, ChevronRight,
   Bed, Bath, Square,
   Volume2, GraduationCap,
-  AlertCircle, ShieldAlert,
+  ShieldAlert,
 } from 'lucide-react';
-import { useMortgagePredictor } from '../../hooks/useMortgagePredictor';
-import type { MortgageRequestPayload } from '../../types/mortgage';
 import type { Property } from '../../types/property';
 import { formatPrice, formatSqft } from '../../utils/formatters';
 import { crimeRiskLabel } from '../../utils/crimeRisk';
 import {
-  glass, colors, TAG_STYLES, ctaButtonStyle,
-  getGaugeColor, getGaugeLabel,
+  glass, colors, TAG_STYLES,
 } from '../../design';
+import { PropertyDetail } from './PropertyDetail';
 
 /* ─── Props ────────────────────────────────────────────────── */
 interface Props {
@@ -22,77 +20,6 @@ interface Props {
   onSelectProperty: (id: string) => void;
   loading: boolean;
   onCardAnchorChange: (pos: { x: number; y: number } | null) => void;
-}
-
-/* ─── Circular Gauge ───────────────────────────────────────── */
-function CircularGauge({ value }: { value: number }) {
-  const r = 50;
-  const circumference = 2 * Math.PI * r;
-  const offset = circumference * (1 - value / 100);
-  const { main: color, glow } = getGaugeColor(value);
-  const label = getGaugeLabel(value);
-
-  return (
-    <div className="flex flex-col items-center gap-2 pt-3 pb-1">
-      <svg viewBox="0 0 120 120" className="w-28 h-28">
-        <defs>
-          <filter id="gauge-glow-rp" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="b" />
-            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        <circle cx="60" cy="60" r={r} fill="none" stroke={colors.whiteDim} strokeWidth="9" />
-        <circle
-          cx="60" cy="60" r={r} fill="none" stroke={color} strokeWidth="9"
-          strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
-          transform="rotate(-90 60 60)" filter="url(#gauge-glow-rp)"
-          style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1), stroke 0.5s' }}
-        />
-        <text x="60" y="56" textAnchor="middle" fill={colors.white} fontSize="24" fontWeight="800" fontFamily="Inter,system-ui">{value}%</text>
-        <text x="60" y="72" textAnchor="middle" fill={colors.whiteMuted} fontSize="8" letterSpacing="1.5" fontFamily="Inter,system-ui">APPROVAL</text>
-      </svg>
-      <p className="text-xs font-semibold" style={{ color, textShadow: `0 0 12px ${glow}` }}>{label}</p>
-    </div>
-  );
-}
-
-/* ─── Mortgage form helpers ────────────────────────────────── */
-const FIELD_DEFAULTS = { annualIncome: 85000, totalDebt: 15000, loanAmount: 300000, downPayment: 80000, creditScore: 720 };
-
-function computePayload(f: typeof FIELD_DEFAULTS, property: Property | null): MortgageRequestPayload {
-  const propertyValue = property?.price ?? (f.loanAmount + f.downPayment);
-  const dti = f.annualIncome > 0 ? (f.totalDebt / f.annualIncome) * 100 : 36;
-  let dtiStr = '36';
-  if (dti < 30) dtiStr = '20%-<30%';
-  else if (dti < 36) dtiStr = '30%-<36%';
-  else if (dti < 40) dtiStr = '36';
-  else if (dti < 43) dtiStr = '40';
-  else if (dti < 50) dtiStr = '43';
-  else dtiStr = '50%-60%';
-  return { loan_amount: f.loanAmount, property_value: propertyValue, income: Math.round(f.annualIncome / 1000), debt_to_income_ratio: dtiStr, loan_type: 1, loan_purpose: 1, loan_term: 360, applicant_age: '35-44', applicant_sex: 1, occupancy_type: 1 };
-}
-
-function MoneyInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: colors.whiteSubtle }}>{label}</label>
-      <div className="flex items-center gap-1 px-2.5 py-2" style={{ background: colors.whiteSoft, border: `1px solid ${colors.borderInput}`, borderRadius: 10 }}>
-        <span className="text-xs font-semibold" style={{ color: colors.whiteSubtle }}>$</span>
-        <input type="number" value={value} onChange={(e) => onChange(parseFloat(e.target.value) || 0)} min={0} className="flex-1 bg-transparent text-xs font-medium focus:outline-none min-w-0" style={{ color: colors.white }} />
-      </div>
-    </div>
-  );
-}
-
-function NumberInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="text-[9px] font-semibold uppercase tracking-widest" style={{ color: colors.whiteSubtle }}>{label}</label>
-      <div className="flex items-center px-2.5 py-2" style={{ background: colors.whiteSoft, border: `1px solid ${colors.borderInput}`, borderRadius: 10 }}>
-        <input type="number" value={value} onChange={(e) => onChange(parseFloat(e.target.value) || 0)} min={300} max={850} className="flex-1 bg-transparent text-xs font-medium focus:outline-none min-w-0" style={{ color: colors.white }} />
-      </div>
-    </div>
-  );
 }
 
 /* ─── Badge ────────────────────────────────────────────────── */
@@ -106,24 +33,16 @@ function PropertyBadge({ label, icon: Icon }: { label: string; icon?: React.Elem
 }
 
 /* ─── Expanded Detail (inside accordion) ──────────────────── */
-function ExpandedDetail({ property }: { property: Property }) {
+function ExpandedDetail({ property, onOpenDetail }: { property: Property; onOpenDetail: (property: Property) => void }) {
   const [photoIdx, setPhotoIdx] = useState(0);
-  const [mortgageOpen, setMortgageOpen] = useState(false);
-  const [fields, setFields] = useState(FIELD_DEFAULTS);
-  const { result, loading: predLoading, error, predict } = useMortgagePredictor();
 
   useEffect(() => { setPhotoIdx(0); }, [property.id]);
-  useEffect(() => {
-    setFields((prev) => ({ ...prev, loanAmount: Math.round(property.price * 0.8), downPayment: Math.round(property.price * 0.2) }));
-  }, [property.id, property.price]);
 
   const photos = property.photos.length > 0 ? property.photos : [property.imageUrl];
   const photoCount = photos.length;
   const slidePct = photoCount > 0 ? (photoIdx / photoCount) * 100 : 0;
   const prevPhoto = () => setPhotoIdx((i) => (i - 1 + photoCount) % photoCount);
   const nextPhoto = () => setPhotoIdx((i) => (i + 1) % photoCount);
-  const handlePredict = (e: React.FormEvent) => { e.preventDefault(); predict(computePayload(fields, property)); };
-  const set = (key: keyof typeof FIELD_DEFAULTS) => (v: number) => setFields((prev) => ({ ...prev, [key]: v }));
 
   const hasTopSchool = property.schools.some((s) => s.rating >= 8);
   const hasQuietZone = property.flexText?.toLowerCase().includes('quiet');
@@ -246,38 +165,18 @@ function ExpandedDetail({ property }: { property: Property }) {
         {property.detailUrl && (
           <a href={property.detailUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-[10px] font-medium underline" style={{ color: colors.whiteSubtle }}>View source listing &rarr;</a>
         )}
-      </div>
-
-      {/* Mortgage predictor (collapsible) */}
-      <div className="mt-1" style={{ borderTop: `1px solid ${colors.border}` }}>
-        <button type="button" onClick={() => setMortgageOpen(!mortgageOpen)} className="flex items-center justify-between w-full px-1 py-2.5">
-          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: colors.whiteMuted }}>AI Mortgage Predictor</span>
-          <ChevronDown size={14} style={{ color: colors.whiteMuted, transform: mortgageOpen ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.3s' }} />
-        </button>
-        <div style={{ display: 'grid', gridTemplateRows: mortgageOpen ? '1fr' : '0fr', transition: 'grid-template-rows 0.2s ease' }}>
-          <div style={{ overflow: 'hidden' }}>
-            <form onSubmit={handlePredict} className="space-y-2 px-1 pb-3">
-              <div className="grid grid-cols-2 gap-2">
-                <MoneyInput label="Annual Income" value={fields.annualIncome} onChange={set('annualIncome')} />
-                <MoneyInput label="Total Debt" value={fields.totalDebt} onChange={set('totalDebt')} />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <MoneyInput label="Loan Amount" value={fields.loanAmount} onChange={set('loanAmount')} />
-                <MoneyInput label="Down Payment" value={fields.downPayment} onChange={set('downPayment')} />
-              </div>
-              <NumberInput label="Credit Score" value={fields.creditScore} onChange={set('creditScore')} />
-              <button type="submit" disabled={predLoading} className="w-full py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all disabled:opacity-50 mt-1" style={predLoading ? { background: colors.whiteTint, color: colors.whiteMuted, border: `1px solid ${colors.border}`, borderRadius: 12 } : { ...ctaButtonStyle, borderRadius: 12 }}>
-                {predLoading ? 'Calculating...' : 'Calculate Approval'}
-              </button>
-            </form>
-            {error && (
-              <div className="mx-1 mb-2 flex items-start gap-2 p-2 rounded-lg" style={{ background: 'rgba(255,60,60,0.08)', border: '1px solid rgba(255,60,60,0.2)' }}>
-                <AlertCircle size={12} style={{ color: colors.red, marginTop: 1, flexShrink: 0 }} />
-                <p className="text-[10px]" style={{ color: `${colors.red}cc` }}>{error}</p>
-              </div>
-            )}
-            {result && !error && <CircularGauge value={result.confidence} />}
-          </div>
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDetail(property);
+            }}
+            className="w-full py-2 rounded-xl text-xs font-bold uppercase tracking-wider"
+            style={{ background: colors.whiteTint, color: colors.white, border: `1px solid ${colors.border}` }}
+          >
+            View this house
+          </button>
         </div>
       </div>
     </div>
@@ -285,7 +184,15 @@ function ExpandedDetail({ property }: { property: Property }) {
 }
 
 /* ─── Compact Card ─────────────────────────────────────────── */
-function CompactCard({ property, selected, dimmed, onClick }: { property: Property; selected: boolean; dimmed: boolean; onClick: () => void }) {
+function CompactCard({
+  property, selected, dimmed, onClick, onOpenDetail,
+}: {
+  property: Property;
+  selected: boolean;
+  dimmed: boolean;
+  onClick: () => void;
+  onOpenDetail: (property: Property) => void;
+}) {
   const photo = property.photos?.[0] || property.imageUrl;
 
   return (
@@ -323,7 +230,7 @@ function CompactCard({ property, selected, dimmed, onClick }: { property: Proper
       {/* Accordion body */}
       <div style={{ display: 'grid', gridTemplateRows: selected ? '1fr' : '0fr', transition: 'grid-template-rows 0.2s ease' }}>
         <div style={{ overflow: 'hidden' }}>
-          {selected && <ExpandedDetail property={property} />}
+          {selected && <ExpandedDetail property={property} onOpenDetail={onOpenDetail} />}
         </div>
       </div>
 
@@ -349,6 +256,7 @@ function scrollChildToVerticalCenter(container: HTMLElement, child: HTMLElement)
 export function RightPanel({ properties, selectedId, onSelectProperty, loading, onCardAnchorChange }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedCardRef = useRef<HTMLDivElement>(null);
+  const [detailProperty, setDetailProperty] = useState<Property | null>(null);
 
   // Center selected row in the list viewport (re-run when card height changes, e.g. accordion open)
   useEffect(() => {
@@ -395,50 +303,70 @@ export function RightPanel({ properties, selectedId, onSelectProperty, loading, 
     return () => cancelAnimationFrame(rafIdRef.current);
   }, [reportAnchor]);
 
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDetailProperty(null);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
+
   return (
-    <div
-      className="h-full flex flex-col overflow-hidden"
-      style={{
-        ...glass.panelDense,
-        borderRadius: 0,
-        borderLeft: `1px solid ${colors.border}`,
-        borderTop: 'none',
-        borderRight: 'none',
-        borderBottom: 'none',
-        boxShadow: '-8px 0 48px rgba(0,0,0,0.6)',
-      }}
-    >
-      {/* Header */}
-      <div className="flex-shrink-0 px-4 pt-4 pb-3" style={{ borderBottom: `1px solid ${colors.border}` }}>
-        <h2 className="text-sm font-bold tracking-wide" style={{ color: colors.white }}>Properties</h2>
-        <p className="text-[10px] mt-0.5" style={{ color: colors.whiteMuted }}>
-          {loading ? 'Loading...' : `${properties.length} listings`}
-        </p>
-      </div>
+    <>
+      <div
+        className="h-full flex flex-col overflow-hidden"
+        style={{
+          ...glass.panelDense,
+          borderRadius: 0,
+          borderLeft: `1px solid ${colors.border}`,
+          borderTop: 'none',
+          borderRight: 'none',
+          borderBottom: 'none',
+          boxShadow: '-8px 0 48px rgba(0,0,0,0.6)',
+        }}
+      >
+        {/* Header */}
+        <div className="flex-shrink-0 px-4 pt-4 pb-3" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <h2 className="text-sm font-bold tracking-wide" style={{ color: colors.white }}>Properties</h2>
+          <p className="text-[10px] mt-0.5" style={{ color: colors.whiteMuted }}>
+            {loading ? 'Loading...' : `${properties.length} listings`}
+          </p>
+        </div>
 
-      {/* Scrollable list */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3">
-        {properties.map((p) => {
-          const isSelected = p.id === selectedId;
-          const isDimmed = selectedId !== null && !isSelected;
-          return (
-            <div key={p.id} ref={isSelected ? selectedCardRef : undefined}>
-              <CompactCard
-                property={p}
-                selected={isSelected}
-                dimmed={isDimmed}
-                onClick={() => onSelectProperty(p.id)}
-              />
+        {/* Scrollable list */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto px-3">
+          {properties.map((p) => {
+            const isSelected = p.id === selectedId;
+            const isDimmed = selectedId !== null && !isSelected;
+            return (
+              <div key={p.id} ref={isSelected ? selectedCardRef : undefined}>
+                <CompactCard
+                  property={p}
+                  selected={isSelected}
+                  dimmed={isDimmed}
+                  onClick={() => onSelectProperty(p.id)}
+                  onOpenDetail={setDetailProperty}
+                />
+              </div>
+            );
+          })}
+
+          {!loading && properties.length === 0 && (
+            <div className="flex items-center justify-center h-32">
+              <p className="text-xs" style={{ color: colors.whiteSubtle }}>No properties match your filters</p>
             </div>
-          );
-        })}
-
-        {!loading && properties.length === 0 && (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-xs" style={{ color: colors.whiteSubtle }}>No properties match your filters</p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+
+      {detailProperty && (
+        <PropertyDetail
+          property={detailProperty}
+          onClose={() => setDetailProperty(null)}
+        />
+      )}
+    </>
   );
 }

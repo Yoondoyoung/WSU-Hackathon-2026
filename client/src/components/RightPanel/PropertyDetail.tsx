@@ -1,11 +1,15 @@
-import { useState, type ElementType, type ReactNode } from 'react';
+import { useEffect, useState, type ElementType, type ReactNode } from 'react';
 import {
   X, ChevronLeft, ChevronRight, Bed, Bath, Square, Flame, Snowflake, Car, Wrench, Building,
   GraduationCap, User, Phone, Clock, Eye, Heart, TrendingUp, ExternalLink, ShieldAlert,
+  AlertCircle,
 } from 'lucide-react';
+import { useMortgagePredictor } from '../../hooks/useMortgagePredictor';
+import type { MortgageRequestPayload } from '../../types/mortgage';
 import type { Property } from '../../types/property';
 import { formatPrice, formatSqft } from '../../utils/formatters';
 import { crimeRiskLabel } from '../../utils/crimeRisk';
+import { colors, ctaButtonStyle, getGaugeColor, getGaugeLabel } from '../../design';
 
 interface Props {
   property: Property;
@@ -37,6 +41,155 @@ function Stat({ label, value }: { label: string; value: string | number | null }
   );
 }
 
+const FIELD_DEFAULTS = {
+  annualIncome: 85000,
+  totalDebt: 15000,
+  loanAmount: 300000,
+  downPayment: 80000,
+};
+
+function computePayload(f: typeof FIELD_DEFAULTS, property: Property): MortgageRequestPayload {
+  const propertyValue = property.price ?? (f.loanAmount + f.downPayment);
+  const dti = f.annualIncome > 0 ? (f.totalDebt / f.annualIncome) * 100 : 36;
+  let dtiStr = '36';
+
+  if (dti < 30) dtiStr = '20%-<30%';
+  else if (dti < 36) dtiStr = '30%-<36%';
+  else if (dti < 40) dtiStr = '36';
+  else if (dti < 43) dtiStr = '40';
+  else if (dti < 50) dtiStr = '43';
+  else dtiStr = '50%-60%';
+
+  return {
+    loan_amount: f.loanAmount,
+    property_value: propertyValue,
+    income: Math.round(f.annualIncome / 1000),
+    debt_to_income_ratio: dtiStr,
+    loan_type: 1,
+    loan_purpose: 1,
+    loan_term: 360,
+    applicant_age: '35-44',
+    applicant_sex: 1,
+    occupancy_type: 1,
+  };
+}
+
+function MoneyInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[10px] font-semibold uppercase tracking-widest text-[#8888a8]">{label}</label>
+      <div className="flex items-center gap-1 px-3 py-2 bg-[#0f0f1a] border border-[#2d2d4a] rounded-lg">
+        <span className="text-xs font-semibold text-[#8888a8]">$</span>
+        <input
+          type="number"
+          value={value}
+          min={0}
+          onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+          className="flex-1 min-w-0 bg-transparent text-sm text-[#e2e2f0] focus:outline-none"
+        />
+      </div>
+    </div>
+  );
+}
+
+function CircularGauge({ value }: { value: number }) {
+  const r = 50;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference * (1 - value / 100);
+  const { main: color, glow } = getGaugeColor(value);
+  const label = getGaugeLabel(value);
+
+  return (
+    <div className="flex flex-col items-center gap-2 pt-2">
+      <svg viewBox="0 0 120 120" className="w-28 h-28">
+        <defs>
+          <filter id="gauge-glow-modal" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+        <circle cx="60" cy="60" r={r} fill="none" stroke={colors.whiteDim} strokeWidth="9" />
+        <circle
+          cx="60"
+          cy="60"
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform="rotate(-90 60 60)"
+          filter="url(#gauge-glow-modal)"
+          style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1), stroke 0.5s' }}
+        />
+        <text x="60" y="56" textAnchor="middle" fill={colors.white} fontSize="24" fontWeight="800">{value}%</text>
+        <text x="60" y="72" textAnchor="middle" fill={colors.whiteMuted} fontSize="8" letterSpacing="1.5">APPROVAL</text>
+      </svg>
+      <p className="text-xs font-semibold" style={{ color, textShadow: `0 0 12px ${glow}` }}>{label}</p>
+    </div>
+  );
+}
+
+function MortgagePredictorPanel({ property }: { property: Property }) {
+  const [fields, setFields] = useState(FIELD_DEFAULTS);
+  const { result, loading, error, predict } = useMortgagePredictor();
+
+  useEffect(() => {
+    setFields((prev) => ({
+      ...prev,
+      loanAmount: Math.round(property.price * 0.8),
+      downPayment: Math.round(property.price * 0.2),
+    }));
+  }, [property.id, property.price]);
+
+  const set = (key: keyof typeof FIELD_DEFAULTS) => (v: number) => setFields((prev) => ({ ...prev, [key]: v }));
+
+  return (
+    <div className="bg-[#141427] border border-[#2d2d4a] rounded-xl p-4">
+      <h3 className="text-[#e2e2f0] text-sm font-semibold mb-1">AI Mortgage Predictor</h3>
+      <p className="text-[#8888a8] text-xs mb-3">
+        Home price auto-fills loan/down payment for this listing.
+      </p>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          predict(computePayload(fields, property));
+        }}
+        className="space-y-2"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-2">
+          <MoneyInput label="Annual Income" value={fields.annualIncome} onChange={set('annualIncome')} />
+          <MoneyInput label="Total Debt" value={fields.totalDebt} onChange={set('totalDebt')} />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-2">
+          <MoneyInput label="Loan Amount" value={fields.loanAmount} onChange={set('loanAmount')} />
+          <MoneyInput label="Down Payment" value={fields.downPayment} onChange={set('downPayment')} />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-2.5 rounded-xl text-xs font-bold tracking-wide transition-all disabled:opacity-50 mt-1"
+          style={loading ? { background: colors.whiteTint, color: colors.whiteMuted, border: `1px solid ${colors.border}` } : ctaButtonStyle}
+        >
+          {loading ? 'Calculating...' : 'Calculate Approval'}
+        </button>
+      </form>
+
+      {error && (
+        <div className="mt-3 flex items-start gap-2 p-2 rounded-lg border border-red-500/30 bg-red-500/10">
+          <AlertCircle size={12} className="text-red-300 mt-0.5 flex-shrink-0" />
+          <p className="text-[11px] text-red-200">{error}</p>
+        </div>
+      )}
+
+      {result && !error && <CircularGauge value={result.confidence} />}
+    </div>
+  );
+}
+
 export function PropertyDetail({ property, onClose }: Props) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const photos = property.photos.length > 0 ? property.photos : [property.imageUrl];
@@ -47,11 +200,11 @@ export function PropertyDetail({ property, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
       onClick={onClose}>
-      <div className="bg-[#1a1a2e] border border-[#2d2d4a] rounded-2xl w-[680px] max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+      <div className="bg-[#1a1a2e] border border-[#2d2d4a] rounded-2xl w-[min(1180px,95vw)] max-h-[92vh] overflow-hidden flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}>
 
         {/* Photo Gallery */}
-        <div className="relative h-72 bg-[#0f0f1a] flex-shrink-0">
+        <div className="relative h-80 bg-[#0f0f1a] flex-shrink-0">
           <img src={photos[photoIdx]} alt={property.streetAddress}
             className="w-full h-full object-cover"
             onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/768x400/25253e/6366f1?text=No+Image'; }} />
@@ -93,145 +246,153 @@ export function PropertyDetail({ property, onClose }: Props) {
         )}
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
-          {/* Header */}
-          <div>
-            <div className="flex items-start justify-between mb-1">
-              <h2 className="text-[#e2e2f0] text-xl font-bold">{formatPrice(property.price)}</h2>
-              <div className="flex gap-2 text-xs text-[#8888a8]">
-                {property.daysOnZillow > 0 && <span className="flex items-center gap-1"><Clock size={10} />{property.daysOnZillow}d on market</span>}
-                {property.pageViews > 0 && <span className="flex items-center gap-1"><Eye size={10} />{property.pageViews.toLocaleString()}</span>}
-                {property.favorites > 0 && <span className="flex items-center gap-1"><Heart size={10} />{property.favorites}</span>}
-              </div>
-            </div>
-            <p className="text-[#e2e2f0] text-sm">{property.address}</p>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-[#8888a8]">
-              <span className="flex items-center gap-1"><Bed size={14} />{property.beds} beds</span>
-              <span className="flex items-center gap-1"><Bath size={14} />{property.baths} baths</span>
-              <span className="flex items-center gap-1"><Square size={14} />{formatSqft(property.sqft)} sqft</span>
-              <span className="flex items-center gap-1" title="Reported incidents within 2 miles">
-                <ShieldAlert size={14} className="text-[#f87171]" />
-                {crimeRiskLabel(property.crimeRiskLevel)} ({property.crimeIncidentCount ?? 0} within {property.crimeRiskRadiusMiles ?? 0.5} mi)
-              </span>
-            </div>
-            {property.detailUrl && (
-              <a
-                href={property.detailUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-2 inline-flex items-center gap-1 text-xs text-[#818cf8] hover:text-[#a5b4fc]"
-              >
-                View source listing <ExternalLink size={12} />
-              </a>
-            )}
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-4 gap-2">
-            <Stat label="Year Built" value={property.yearBuilt || null} />
-            <Stat label="Lot Size" value={property.lotSize ? `${property.lotSize.toLocaleString()} sqft` : null} />
-            <Stat label="$/Sqft" value={property.pricePerSqft ? `$${property.pricePerSqft}` : null} />
-            <Stat label="Type" value={property.homeType} />
-            {property.zestimate && <Stat label="Zestimate" value={formatPrice(property.zestimate)} />}
-            {property.rentZestimate && <Stat label="Rent Estimate" value={`${formatPrice(property.rentZestimate)}/mo`} />}
-            {property.hoaFee && <Stat label="HOA Fee" value={`${formatPrice(property.hoaFee)}/mo`} />}
-          </div>
-
-          {/* Description */}
-          {property.description && (
-            <Section title="Description" icon={Building}>
-              <p className="text-[#8888a8] text-xs leading-relaxed">{property.description}</p>
-            </Section>
-          )}
-
-          {/* Features */}
-          <div className="grid grid-cols-2 gap-4">
-            {property.heating.length > 0 && (
-              <Section title="Heating" icon={Flame}>
-                <div className="flex flex-wrap gap-1">{property.heating.map((h) => <Pill key={h} text={h} />)}</div>
-              </Section>
-            )}
-            {property.cooling.length > 0 && (
-              <Section title="Cooling" icon={Snowflake}>
-                <div className="flex flex-wrap gap-1">{property.cooling.map((c) => <Pill key={c} text={c} />)}</div>
-              </Section>
-            )}
-            {property.parking.length > 0 && (
-              <Section title="Parking" icon={Car}>
-                <div className="flex flex-wrap gap-1">{property.parking.map((p) => <Pill key={p} text={p} />)}</div>
-              </Section>
-            )}
-            {property.appliances.length > 0 && (
-              <Section title="Appliances" icon={Wrench}>
-                <div className="flex flex-wrap gap-1">{property.appliances.map((a) => <Pill key={a} text={a} />)}</div>
-              </Section>
-            )}
-            {property.constructionMaterials.length > 0 && (
-              <Section title="Construction" icon={Building}>
-                <div className="flex flex-wrap gap-1">{property.constructionMaterials.map((c) => <Pill key={c} text={c} />)}</div>
-              </Section>
-            )}
-            {property.basement && (
-              <Section title="Basement" icon={Building}>
-                <Pill text={property.basement} />
-              </Section>
-            )}
-          </div>
-
-          {/* Schools */}
-          {property.schools.length > 0 && (
-            <Section title="Nearby Schools" icon={GraduationCap}>
-              <div className="space-y-2">
-                {property.schools.map((s, i) => (
-                  <div key={`${s.name}-${i}`} className="flex items-center gap-3 bg-[#0f0f1a] rounded-lg p-2.5">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                      s.rating >= 7 ? 'bg-green-900/50 text-green-400' :
-                      s.rating >= 4 ? 'bg-yellow-900/50 text-yellow-400' :
-                      'bg-red-900/50 text-red-400'}`}>
-                      {s.rating || 'N/A'}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[#e2e2f0] text-xs font-medium truncate">{s.name}</p>
-                      <p className="text-[#8888a8] text-[10px]">
-                        {s.level || 'N/A'} &middot; {s.distance} mi &middot; {s.type || 'School'}
-                      </p>
-                    </div>
+        <div className="flex-1 overflow-y-auto p-5">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2 space-y-5">
+              {/* Header */}
+              <div>
+                <div className="flex items-start justify-between mb-1">
+                  <h2 className="text-[#e2e2f0] text-xl font-bold">{formatPrice(property.price)}</h2>
+                  <div className="flex gap-2 text-xs text-[#8888a8]">
+                    {property.daysOnZillow > 0 && <span className="flex items-center gap-1"><Clock size={10} />{property.daysOnZillow}d on market</span>}
+                    {property.pageViews > 0 && <span className="flex items-center gap-1"><Eye size={10} />{property.pageViews.toLocaleString()}</span>}
+                    {property.favorites > 0 && <span className="flex items-center gap-1"><Heart size={10} />{property.favorites}</span>}
                   </div>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {/* Price History */}
-          {property.priceHistory.length > 0 && (
-            <Section title="Price History" icon={TrendingUp}>
-              <div className="space-y-1">
-                {property.priceHistory.slice(0, 5).map((p, i) => (
-                  <div key={i} className="flex items-center gap-3 text-xs text-[#8888a8]">
-                    <span className="w-20 flex-shrink-0">{p.date}</span>
-                    <span className="w-24 flex-shrink-0">{p.event}</span>
-                    <span className="text-[#e2e2f0] font-medium">{p.price > 0 ? formatPrice(p.price) : '—'}</span>
-                    <span className="ml-auto text-[10px]">{p.source}</span>
-                  </div>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {/* Agent Info */}
-          {(property.brokerName || property.agentName) && (
-            <Section title="Listing Agent" icon={User}>
-              <div className="bg-[#0f0f1a] rounded-lg p-3">
-                {property.agentName && <p className="text-[#e2e2f0] text-sm font-medium">{property.agentName}</p>}
-                {property.brokerName && <p className="text-[#8888a8] text-xs">{property.brokerName}</p>}
-                {property.agentPhone && (
-                  <p className="text-[#6366f1] text-xs mt-1 flex items-center gap-1">
-                    <Phone size={10} />{property.agentPhone}
-                  </p>
+                </div>
+                <p className="text-[#e2e2f0] text-sm">{property.address}</p>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-sm text-[#8888a8]">
+                  <span className="flex items-center gap-1"><Bed size={14} />{property.beds} beds</span>
+                  <span className="flex items-center gap-1"><Bath size={14} />{property.baths} baths</span>
+                  <span className="flex items-center gap-1"><Square size={14} />{formatSqft(property.sqft)} sqft</span>
+                  <span className="flex items-center gap-1" title="Reported incidents within 2 miles">
+                    <ShieldAlert size={14} className="text-[#f87171]" />
+                    {crimeRiskLabel(property.crimeRiskLevel)} ({property.crimeIncidentCount ?? 0} within {property.crimeRiskRadiusMiles ?? 0.5} mi)
+                  </span>
+                </div>
+                {property.detailUrl && (
+                  <a
+                    href={property.detailUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-[#818cf8] hover:text-[#a5b4fc]"
+                  >
+                    View source listing <ExternalLink size={12} />
+                  </a>
                 )}
               </div>
-            </Section>
-          )}
+
+              {/* Quick Stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                <Stat label="Year Built" value={property.yearBuilt || null} />
+                <Stat label="Lot Size" value={property.lotSize ? `${property.lotSize.toLocaleString()} sqft` : null} />
+                <Stat label="$/Sqft" value={property.pricePerSqft ? `$${property.pricePerSqft}` : null} />
+                <Stat label="Type" value={property.homeType} />
+                {property.zestimate && <Stat label="Zestimate" value={formatPrice(property.zestimate)} />}
+                {property.rentZestimate && <Stat label="Rent Estimate" value={`${formatPrice(property.rentZestimate)}/mo`} />}
+                {property.hoaFee && <Stat label="HOA Fee" value={`${formatPrice(property.hoaFee)}/mo`} />}
+              </div>
+
+              {/* Description */}
+              {property.description && (
+                <Section title="Description" icon={Building}>
+                  <p className="text-[#8888a8] text-xs leading-relaxed">{property.description}</p>
+                </Section>
+              )}
+
+              {/* Features */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {property.heating.length > 0 && (
+                  <Section title="Heating" icon={Flame}>
+                    <div className="flex flex-wrap gap-1">{property.heating.map((h) => <Pill key={h} text={h} />)}</div>
+                  </Section>
+                )}
+                {property.cooling.length > 0 && (
+                  <Section title="Cooling" icon={Snowflake}>
+                    <div className="flex flex-wrap gap-1">{property.cooling.map((c) => <Pill key={c} text={c} />)}</div>
+                  </Section>
+                )}
+                {property.parking.length > 0 && (
+                  <Section title="Parking" icon={Car}>
+                    <div className="flex flex-wrap gap-1">{property.parking.map((p) => <Pill key={p} text={p} />)}</div>
+                  </Section>
+                )}
+                {property.appliances.length > 0 && (
+                  <Section title="Appliances" icon={Wrench}>
+                    <div className="flex flex-wrap gap-1">{property.appliances.map((a) => <Pill key={a} text={a} />)}</div>
+                  </Section>
+                )}
+                {property.constructionMaterials.length > 0 && (
+                  <Section title="Construction" icon={Building}>
+                    <div className="flex flex-wrap gap-1">{property.constructionMaterials.map((c) => <Pill key={c} text={c} />)}</div>
+                  </Section>
+                )}
+                {property.basement && (
+                  <Section title="Basement" icon={Building}>
+                    <Pill text={property.basement} />
+                  </Section>
+                )}
+              </div>
+
+              {/* Schools */}
+              {property.schools.length > 0 && (
+                <Section title="Nearby Schools" icon={GraduationCap}>
+                  <div className="space-y-2">
+                    {property.schools.map((s, i) => (
+                      <div key={`${s.name}-${i}`} className="flex items-center gap-3 bg-[#0f0f1a] rounded-lg p-2.5">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                          s.rating >= 7 ? 'bg-green-900/50 text-green-400' :
+                          s.rating >= 4 ? 'bg-yellow-900/50 text-yellow-400' :
+                          'bg-red-900/50 text-red-400'}`}>
+                          {s.rating || 'N/A'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[#e2e2f0] text-xs font-medium truncate">{s.name}</p>
+                          <p className="text-[#8888a8] text-[10px]">
+                            {s.level || 'N/A'} &middot; {s.distance} mi &middot; {s.type || 'School'}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Price History */}
+              {property.priceHistory.length > 0 && (
+                <Section title="Price History" icon={TrendingUp}>
+                  <div className="space-y-1">
+                    {property.priceHistory.slice(0, 5).map((p, i) => (
+                      <div key={i} className="flex items-center gap-3 text-xs text-[#8888a8]">
+                        <span className="w-20 flex-shrink-0">{p.date}</span>
+                        <span className="w-24 flex-shrink-0">{p.event}</span>
+                        <span className="text-[#e2e2f0] font-medium">{p.price > 0 ? formatPrice(p.price) : '—'}</span>
+                        <span className="ml-auto text-[10px]">{p.source}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Agent Info */}
+              {(property.brokerName || property.agentName) && (
+                <Section title="Listing Agent" icon={User}>
+                  <div className="bg-[#0f0f1a] rounded-lg p-3">
+                    {property.agentName && <p className="text-[#e2e2f0] text-sm font-medium">{property.agentName}</p>}
+                    {property.brokerName && <p className="text-[#8888a8] text-xs">{property.brokerName}</p>}
+                    {property.agentPhone && (
+                      <p className="text-[#6366f1] text-xs mt-1 flex items-center gap-1">
+                        <Phone size={10} />{property.agentPhone}
+                      </p>
+                    )}
+                  </div>
+                </Section>
+              )}
+            </div>
+
+            <div className="xl:col-span-1 xl:sticky xl:top-0 h-fit">
+              <MortgagePredictorPanel property={property} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
