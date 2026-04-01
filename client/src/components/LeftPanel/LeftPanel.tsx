@@ -1,7 +1,19 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { ViewToggle } from './ViewToggle';
-import { OverlayToggle } from './OverlayToggle';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Map,
+  Satellite,
+  Box,
+  Shield,
+  GraduationCap,
+  Users,
+  Volume2,
+  Building2,
+  SlidersHorizontal,
+  DollarSign,
+  Star,
+} from 'lucide-react';
 import type { MapViewMode, OverlayType } from '../../types/map';
 import { glass, colors } from '../../design';
 
@@ -27,22 +39,61 @@ function formatPriceShort(val: number) {
   return `$${val}`;
 }
 
-function SectionLabel({ children }: { children: string }) {
-  return (
-    <p
-      className="text-[10px] font-semibold uppercase mb-3"
-      style={{ color: colors.whiteSubtle, letterSpacing: '0.1em' }}
-    >
-      {children}
-    </p>
-  );
-}
+const VIEW_MODES: { key: MapViewMode; label: string; icon: React.ElementType }[] = [
+  { key: 'default', label: 'Default', icon: Map },
+  { key: 'satellite', label: 'Satellite', icon: Satellite },
+  { key: '3d', label: '3D View', icon: Box },
+];
 
-function Divider() {
-  return (
-    <div style={{ height: 1, background: colors.whiteDim, margin: '2px 0' }} />
-  );
-}
+const OVERLAY_CONFIG: {
+  key: OverlayType;
+  label: string;
+  icon: React.ElementType;
+  color: string;
+  bgColor: string;
+  description: string;
+}[] = [
+  {
+    key: 'crime',
+    label: 'Crime Hotspots',
+    icon: Shield,
+    color: colors.red,
+    bgColor: 'rgba(239,68,68,0.12)',
+    description: 'Incident heatmap',
+  },
+  {
+    key: 'schools',
+    label: 'School Ratings',
+    icon: GraduationCap,
+    color: colors.emerald,
+    bgColor: 'rgba(16,185,129,0.12)',
+    description: 'K-12 quality scores',
+  },
+  {
+    key: 'population',
+    label: 'Population Density',
+    icon: Users,
+    color: '#8b5cf6',
+    bgColor: 'rgba(139,92,246,0.12)',
+    description: 'Residents per sq mi',
+  },
+  {
+    key: 'noise',
+    label: 'Noise Levels',
+    icon: Volume2,
+    color: colors.yellow,
+    bgColor: 'rgba(245,158,11,0.12)',
+    description: 'Ambient dB readings',
+  },
+  {
+    key: 'structures',
+    label: 'Building Footprints',
+    icon: Building2,
+    color: colors.cyan,
+    bgColor: 'rgba(103,232,249,0.12)',
+    description: 'Structure outlines',
+  },
+];
 
 export function LeftPanel({
   viewMode,
@@ -57,24 +108,24 @@ export function LeftPanel({
   onMinSchoolRatingChange,
 }: Props) {
   const [filtersOpen, setFiltersOpen] = useState(true);
-  const activeCount = activeOverlays.size;
 
   return (
     <div
-      className="h-full flex flex-col relative overflow-hidden"
+      className="relative flex flex-col h-full w-full transition-all duration-300 ease-out overflow-hidden border-r"
       style={{
         ...glass.panelDense,
         borderRadius: 16,
+        borderColor: colors.border,
       }}
     >
       {/* Collapse toggle */}
       <button
         onClick={onToggleCollapse}
-        className="absolute -right-3.5 top-1/2 -translate-y-1/2 z-20 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
+        className="absolute right-2 bottom-6 z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
         style={{
-          background: colors.bgPanelDense,
-          border: `1px solid ${colors.borderInput}`,
-          color: colors.whiteMuted,
+          background: colors.bgPanelMedium,
+          border: `1px solid ${colors.border}`,
+          color: colors.whiteSubtle,
           boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
         }}
       >
@@ -83,178 +134,226 @@ export function LeftPanel({
 
       {/* Header */}
       <div
-        className={`flex items-center gap-3 py-5 flex-shrink-0 ${collapsed ? 'justify-center px-3' : 'px-6'}`}
+        className={`flex items-center gap-3 px-5 py-5 border-b flex-shrink-0 ${collapsed ? 'justify-center px-2' : ''}`}
         style={{ borderBottom: `1px solid ${colors.border}` }}
       >
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
-          style={{
-            background: `linear-gradient(135deg, rgba(0,200,255,0.18), rgba(100,140,255,0.18))`,
-            border: `1px solid rgba(0,200,255,0.22)`,
-            boxShadow: `0 0 14px rgba(0,200,255,0.12)`,
-          }}
-        >
-          <div
-            className="w-2 h-2 rounded-full"
-            style={{ background: colors.cyan, boxShadow: `0 0 6px ${colors.cyan}` }}
-          />
+        <div className="w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0" style={{ background: `${colors.blue}22`, borderColor: `${colors.blue}44` }}>
+          <Map size={14} style={{ color: colors.blue }} />
         </div>
 
         {!collapsed && (
           <div>
-            <p className="text-sm font-bold" style={{ color: colors.white, letterSpacing: '0.01em' }}>
-              Smart-Path
+            <p
+              className="text-[11px] font-semibold leading-none"
+              style={{ color: colors.white, fontFamily: "'Space Grotesk', 'Inter', sans-serif" }}
+            >
+              Utah Smart-Path
             </p>
-            <p className="text-[10px] font-medium" style={{ color: colors.whiteSubtle, letterSpacing: '0.05em' }}>
+            <p className="text-[10px] mt-0.5" style={{ color: colors.whiteSubtle }}>
               SLC Explorer
             </p>
           </div>
         )}
       </div>
 
-      {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto py-5 space-y-5">
-
-        {/* Map View */}
-        <section className={collapsed ? 'px-2' : 'px-6'}>
-          {!collapsed && <SectionLabel>Map View</SectionLabel>}
-          <ViewToggle current={viewMode} onChange={onViewChange} collapsed={collapsed} />
-        </section>
-
-        <div className={collapsed ? 'mx-2' : 'mx-6'}><Divider /></div>
-
-        {/* Data Layers */}
-        <section className={collapsed ? 'px-2' : 'px-6'}>
-          {!collapsed && (
-            <div className="flex items-start justify-between gap-2 mb-3 min-w-0">
-              <div className="min-w-0 flex-1">
-                <SectionLabel>Data Layers</SectionLabel>
-              </div>
-              {activeCount > 0 && (
-                <span
-                  className="text-[9px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5"
-                  style={{
-                    background: `rgba(0,200,255,0.12)`,
-                    color: colors.cyan,
-                    border: `1px solid rgba(0,200,255,0.22)`,
-                  }}
-                >
-                  {activeCount} ON
-                </span>
-              )}
+      {collapsed ? (
+        <div className="flex flex-col items-center gap-3 pt-4 px-2">
+          {VIEW_MODES.map(({ key, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => onViewChange(key)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all"
+              style={viewMode === key
+                ? { background: `${colors.blue}22`, color: colors.blue, border: `1px solid ${colors.blue}44` }
+                : { color: colors.whiteSubtle }}
+            >
+              <Icon size={14} />
+            </button>
+          ))}
+          <div className="w-full h-px my-1" style={{ background: colors.border }} />
+          {OVERLAY_CONFIG.map(({ key, icon: Icon, color }) => (
+            <button
+              key={key}
+              onClick={() => onOverlayToggle(key)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all border"
+              style={activeOverlays.has(key)
+                ? { color, background: `${color}22`, borderColor: `${color}55` }
+                : { color: colors.whiteSubtle, borderColor: 'transparent' }}
+            >
+              <Icon size={14} />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          {/* View Mode */}
+          <div className="px-[30px] pt-5 pb-4">
+            <div className="text-[10px] font-semibold uppercase tracking-widest mb-2.5" style={{ color: colors.whiteSubtle, fontFamily: "'Space Grotesk', 'Inter', sans-serif" }}>
+              Map View
             </div>
-          )}
-          <OverlayToggle activeOverlays={activeOverlays} onToggle={onOverlayToggle} collapsed={collapsed} />
-        </section>
-
-        {/* Filters — expanded only */}
-        {!collapsed && (
-          <>
-            <div className="mx-6"><Divider /></div>
-
-            <section className="px-6">
-              <button
-                type="button"
-                className="flex items-center justify-between gap-2 w-full mb-4 min-w-0 text-left"
-                onClick={() => setFiltersOpen((v) => !v)}
-              >
-                <div className="min-w-0 flex-1">
-                  <SectionLabel>Filters</SectionLabel>
-                </div>
-                <span
-                  className="text-[9px] font-bold transition-transform duration-200 flex-shrink-0 pt-0.5"
-                  style={{
-                    color: colors.whiteSubtle,
-                    transform: filtersOpen ? 'rotate(180deg)' : 'none',
-                  }}
+            <div className="flex gap-2">
+              {VIEW_MODES.map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => onViewChange(key)}
+                  className="flex-1 flex flex-col items-center gap-1.5 py-2.5 rounded-lg text-[10px] font-medium transition-all border"
+                  style={viewMode === key
+                    ? { background: `${colors.blue}1f`, borderColor: `${colors.blue}55`, color: '#93c5fd' }
+                    : { background: colors.whiteSoft, borderColor: colors.border, color: colors.whiteSubtle }}
                 >
-                  ▼
-                </span>
-              </button>
+                  <Icon size={13} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-              {filtersOpen && (
-                <div className="space-y-5">
-                  {/* Price Range */}
-                  <div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-[10px] font-medium" style={{ color: colors.whiteMuted }}>Price Range</span>
-                      <span className="text-[10px] font-semibold" style={{ color: colors.cyan }}>
-                        {formatPriceShort(priceRange[0])} – {formatPriceShort(priceRange[1])}
-                      </span>
+          <div className="h-px mx-[30px]" style={{ background: colors.border }} />
+
+          {/* Data Overlays */}
+          <div className="px-[30px] pt-4 pb-4">
+            <div className="text-[10px] font-semibold uppercase tracking-widest mb-2.5" style={{ color: colors.whiteSubtle, fontFamily: "'Space Grotesk', 'Inter', sans-serif" }}>
+              Data Layers
+            </div>
+            <div className="flex flex-col gap-2">
+              {OVERLAY_CONFIG.map(({ key, label, icon: Icon, color, bgColor, description }) => {
+                const active = activeOverlays.has(key);
+                return (
+                  <button
+                    key={key}
+                    onClick={() => onOverlayToggle(key)}
+                    className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg transition-all text-left border"
+                    style={active
+                      ? { background: bgColor, borderColor: `${color}55` }
+                      : { borderColor: colors.border, background: 'transparent' }}
+                  >
+                    <div
+                      className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+                      style={active ? { background: `${color}35`, color } : { background: colors.whiteSoft, color: colors.whiteSubtle }}
+                    >
+                      <Icon size={12} />
                     </div>
-                    <div className="space-y-2.5 px-0.5">
-                      <input type="range" min={MIN_PRICE} max={MAX_PRICE} step={50000}
-                        value={priceRange[0]}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          onPriceRangeChange([Math.min(v, priceRange[1] - 50000), priceRange[1]]);
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className="text-[11px] font-medium leading-none mb-0.5"
+                        style={{
+                          color: active ? color : 'rgba(255,255,255,0.75)',
+                          fontFamily: "'Space Grotesk', 'Inter', sans-serif",
                         }}
-                        className="w-full" />
-                      <input type="range" min={MIN_PRICE} max={MAX_PRICE} step={50000}
-                        value={priceRange[1]}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          onPriceRangeChange([priceRange[0], Math.max(v, priceRange[0] + 50000)]);
-                        }}
-                        className="w-full" />
+                      >
+                        {label}
+                      </div>
+                      <div className="text-[10px] truncate" style={{ color: colors.whiteSubtle }}>
+                        {description}
+                      </div>
+                    </div>
+                    <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: active ? color : colors.whiteDim }} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="h-px mx-[30px]" style={{ background: colors.border }} />
+
+          {/* Filters */}
+          <div className="px-[30px] pt-4 pb-5">
+            <button
+              onClick={() => setFiltersOpen((v) => !v)}
+              className="flex items-center justify-between w-full mb-2.5"
+            >
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal size={11} style={{ color: colors.whiteSubtle }} />
+                <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: colors.whiteSubtle, fontFamily: "'Space Grotesk', 'Inter', sans-serif" }}>
+                  Filters
+                </span>
+              </div>
+              <ChevronRight
+                size={12}
+                className={`transition-transform ${filtersOpen ? 'rotate-90' : ''}`}
+                style={{ color: colors.whiteSubtle }}
+              />
+            </button>
+
+            {filtersOpen && (
+              <div className="space-y-5">
+                <div>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <DollarSign size={11} style={{ color: colors.whiteSubtle }} />
+                      <span className="text-[11px]" style={{ color: colors.whiteMuted }}>Price Range</span>
                     </div>
                   </div>
-
-                  {/* School Rating */}
-                  <div>
-                    <div className="flex justify-between mb-2">
-                      <span className="text-[10px] font-medium" style={{ color: colors.whiteMuted }}>Min School Rating</span>
-                      <span className="text-[10px] font-semibold" style={{ color: colors.emerald }}>
-                        {minSchoolRating === 0 ? 'Any' : `${minSchoolRating}+`}
-                      </span>
-                    </div>
-                    <input type="range" min={0} max={10} step={1}
-                      value={minSchoolRating}
-                      onChange={(e) => onMinSchoolRatingChange(Number(e.target.value))}
-                      className="w-full px-0.5 box-border"
-                      style={{ accentColor: colors.emerald }} />
-                    <div className="flex justify-between mt-1.5">
-                      <span className="text-[9px]" style={{ color: colors.whiteFaint }}>Any</span>
-                      <span className="text-[9px]" style={{ color: colors.whiteFaint }}>10</span>
-                    </div>
+                  <div className="flex justify-between text-[10px] mb-2">
+                    <span style={{ color: colors.whiteMuted }}>{formatPriceShort(priceRange[0])}</span>
+                    <span style={{ color: colors.whiteMuted }}>{formatPriceShort(priceRange[1])}</span>
+                  </div>
+                  <div className="space-y-2.5 px-0.5">
+                    <input
+                      type="range"
+                      min={MIN_PRICE}
+                      max={MAX_PRICE}
+                      step={50000}
+                      value={priceRange[0]}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        onPriceRangeChange([Math.min(v, priceRange[1] - 50000), priceRange[1]]);
+                      }}
+                      className="w-full"
+                    />
+                    <input
+                      type="range"
+                      min={MIN_PRICE}
+                      max={MAX_PRICE}
+                      step={50000}
+                      value={priceRange[1]}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        onPriceRangeChange([priceRange[0], Math.max(v, priceRange[0] + 50000)]);
+                      }}
+                      className="w-full"
+                    />
                   </div>
                 </div>
-              )}
-            </section>
 
-            <div className="mx-6"><Divider /></div>
-
-            {/* Legend */}
-            <section className="px-6">
-              <SectionLabel>Heatmap Legend</SectionLabel>
-              <div className="space-y-2.5">
-                {[
-                  { color: colors.red, label: 'High Risk' },
-                  { color: colors.yellow, label: 'Moderate' },
-                  { color: colors.emerald, label: 'Low Risk / Good' },
-                ].map(({ color, label }) => (
-                  <div key={label} className="flex items-center gap-2.5">
-                    <div
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ background: color, boxShadow: `0 0 5px ${color}` }}
-                    />
-                    <span className="text-[11px] font-medium" style={{ color: colors.whiteMuted }}>{label}</span>
+                <div>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <Star size={11} style={{ color: colors.whiteSubtle }} />
+                      <span className="text-[11px]" style={{ color: colors.whiteMuted }}>Min School Rating</span>
+                    </div>
+                    <span className="text-[11px] font-semibold" style={{ color: colors.emerald }}>
+                      {minSchoolRating}/10
+                    </span>
                   </div>
-                ))}
+                  <input
+                    type="range"
+                    min={0}
+                    max={10}
+                    step={1}
+                    value={minSchoolRating}
+                    onChange={(e) => onMinSchoolRatingChange(Number(e.target.value))}
+                    className="w-full"
+                    style={{ accentColor: colors.emerald }}
+                  />
+                </div>
               </div>
-            </section>
-          </>
-        )}
-      </div>
+            )}
+          </div>
+        </div>
+      )}
 
-      {/* Footer */}
       {!collapsed && (
-        <div
-          className="px-6 py-3.5 flex-shrink-0"
-          style={{ borderTop: `1px solid ${colors.border}` }}
-        >
+        <div className="px-[30px] py-3.5 border-t flex-shrink-0" style={{ borderTopColor: colors.border }}>
           <p className="text-[9px] font-medium tracking-widest uppercase" style={{ color: colors.whiteFaint }}>
             WSU Hackathon · 2026
+          </p>
+        </div>
+      )}
+      {collapsed && (
+        <div className="px-2 py-3 border-t flex-shrink-0 flex justify-center" style={{ borderTopColor: colors.border }}>
+          <p className="text-[8px] font-semibold" style={{ color: colors.whiteFaint, writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+            WSU
           </p>
         </div>
       )}

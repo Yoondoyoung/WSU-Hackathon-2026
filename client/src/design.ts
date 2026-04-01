@@ -3,20 +3,20 @@ import { ShieldAlert, GraduationCap, Users, Volume2 } from "lucide-react";
 
 // ── Color Palette ──
 export const colors = {
-  bg: "#0a0e1a",
-  bgPanel: "rgba(10, 18, 35, 0.75)",
-  bgPanelDense: "rgba(10, 18, 35, 0.82)",
-  bgPanelMedium: "rgba(10, 18, 35, 0.8)",
-  bgTooltip: "rgba(13, 21, 37, 0.9)",
-  bgGradientFrom: "#0a1223",
+  bg: "#0d1117",
+  bgPanel: "rgba(22, 27, 34, 0.78)",
+  bgPanelDense: "rgba(17, 22, 30, 0.86)",
+  bgPanelMedium: "rgba(22, 27, 34, 0.84)",
+  bgTooltip: "rgba(17, 22, 30, 0.95)",
+  bgGradientFrom: "#111827",
 
-  cyan: "#00c8ff",
-  cyanLight: "#00dcff",
-  emerald: "#00dc82",
-  blue: "#648cff",
-  yellow: "#ffb400",
-  red: "#ff3c3c",
-  redSoft: "#ff4060",
+  cyan: "#67e8f9",
+  cyanLight: "#8beeff",
+  emerald: "#10b981",
+  blue: "#3b82f6",
+  yellow: "#f59e0b",
+  red: "#ef4444",
+  redSoft: "#f87171",
 
   white: "#ffffff",
   whiteMuted: "rgba(255,255,255,0.4)",
@@ -26,8 +26,8 @@ export const colors = {
   whiteTint: "rgba(255,255,255,0.06)",
   whiteSoft: "rgba(255,255,255,0.05)",
 
-  border: "rgba(255,255,255,0.08)",
-  borderInput: "rgba(255,255,255,0.1)",
+  border: "rgba(255,255,255,0.1)",
+  borderInput: "rgba(255,255,255,0.12)",
 } as const;
 
 // ── Glassmorphism Styles ──
@@ -157,9 +157,9 @@ export const BUILDING_BLOCKS = [
 
 // ── CTA Button Style ──
 export const ctaButtonStyle: CSSProperties = {
-  background: `linear-gradient(135deg, ${colors.cyan}, ${colors.emerald})`,
-  color: colors.bgGradientFrom,
-  boxShadow: "0 4px 20px rgba(0,200,255,0.3)",
+  background: `linear-gradient(135deg, ${colors.blue}, ${colors.cyan})`,
+  color: colors.white,
+  boxShadow: "0 4px 20px rgba(59,130,246,0.28)",
 };
 
 // ── Property Type ──

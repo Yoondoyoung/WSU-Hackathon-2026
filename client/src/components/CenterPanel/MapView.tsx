@@ -548,21 +548,6 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
         ))}
       </Map>
 
-      {/* Viewport marker count badge */}
-      <div
-        className="absolute top-3 left-3 z-[11] pointer-events-none"
-        style={{
-          ...glass.pill,
-          borderRadius: 8,
-          padding: '5px 10px',
-          fontSize: 11,
-          color: colors.whiteMuted,
-          letterSpacing: '0.02em',
-        }}
-      >
-        {visibleProperties.length} of {properties.length} listings in view
-      </div>
-
       {/* Building footprints legend — fixed bottom-right of map (left of 360px panel on desktop) */}
       {activeOverlays.has('structures') && (
         <div
