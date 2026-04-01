@@ -78,6 +78,17 @@ interface CrimePopupData {
   date?: string;
 }
 
+interface SchoolPopupData {
+  longitude: number;
+  latitude: number;
+  name?: string;
+  rating?: number | null;
+  type?: string;
+  gradeLevels?: string;
+  address?: string;
+  link?: string;
+}
+
 function GlowMarker({
   property,
   selected,
@@ -186,6 +197,7 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
     [activeOverlays]
   );
   const [crimePopup, setCrimePopup] = useState<CrimePopupData | null>(null);
+  const [schoolPopup, setSchoolPopup] = useState<SchoolPopupData | null>(null);
   const structuresTileUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/api/properties/overlays/structures/tiles/{z}/{x}/{y}.pbf`
@@ -263,6 +275,28 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
   );
 
   const handleMapClick = useCallback((evt: any) => {
+    const schoolFeature = evt.features?.find((f: any) => f.layer?.id === 'schools-points');
+    if (schoolFeature) {
+      const coords = schoolFeature.geometry?.coordinates;
+      if (Array.isArray(coords) && coords.length >= 2) {
+        const props = schoolFeature.properties ?? {};
+        setSchoolPopup({
+          longitude: coords[0],
+          latitude: coords[1],
+          name: props.name,
+          rating: props.rating != null && Number.isFinite(Number(props.rating))
+            ? Number(props.rating)
+            : null,
+          type: props.type,
+          gradeLevels: props.gradeLevels,
+          address: props.address,
+          link: props.link,
+        });
+        setCrimePopup(null);
+        return;
+      }
+    }
+
     const feature = evt.features?.find((f: any) => f.layer?.id === 'crime-points');
     if (!feature) return;
 
@@ -278,6 +312,7 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
       division: props.division,
       date: props.date,
     });
+    setSchoolPopup(null);
   }, []);
 
   return (
@@ -287,7 +322,10 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
         {...viewState}
         onMove={(evt) => setViewState(evt.viewState)}
         onClick={handleMapClick}
-        interactiveLayerIds={activeOverlays.has('crime') ? ['crime-points'] : []}
+        interactiveLayerIds={[
+          ...(activeOverlays.has('crime') ? ['crime-points'] : []),
+          ...(activeOverlays.has('schools') ? ['schools-points'] : []),
+        ]}
         mapStyle={MAP_STYLES[viewMode]}
         mapboxAccessToken={MAPBOX_TOKEN}
         style={{ width: '100%', height: '100%' }}
@@ -382,6 +420,20 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
           overlay !== 'structures' && overlay !== 'crime' && overlayData[overlay] ? (
             <Source key={overlay} id={`source-${overlay}`} type="geojson" data={overlayData[overlay]}>
               <Layer {...heatmapLayer(overlay)} />
+              {overlay === 'schools' && (
+                <Layer
+                  id="schools-points"
+                  type="circle"
+                  minzoom={10}
+                  paint={{
+                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 13, 4, 16, 6],
+                    'circle-color': '#22c55e',
+                    'circle-opacity': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 13, 0.75, 16, 0.9],
+                    'circle-stroke-color': '#0f172a',
+                    'circle-stroke-width': 0.8,
+                  }}
+                />
+              )}
             </Source>
           ) : null
         )}
@@ -399,6 +451,37 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
               <p><span style={{ color: colors.whiteSubtle }}>Crime:</span> {crimePopup.crime || 'Unknown'}</p>
               <p><span style={{ color: colors.whiteSubtle }}>Division:</span> {crimePopup.division || 'Unknown'}</p>
               <p><span style={{ color: colors.whiteSubtle }}>Date:</span> {crimePopup.date || 'Unknown'}</p>
+            </div>
+          </Popup>
+        )}
+
+        {schoolPopup && (
+          <Popup
+            longitude={schoolPopup.longitude}
+            latitude={schoolPopup.latitude}
+            anchor="top"
+            onClose={() => setSchoolPopup(null)}
+            closeOnClick={false}
+          >
+            <div className="text-xs leading-relaxed min-w-56">
+              <p className="font-semibold mb-1" style={{ color: colors.cyan }}>
+                {schoolPopup.name || 'Unknown school'}
+              </p>
+              <p><span style={{ color: colors.whiteSubtle }}>Rating:</span> {schoolPopup.rating ?? 'N/A'}</p>
+              <p><span style={{ color: colors.whiteSubtle }}>Type:</span> {schoolPopup.type || 'School'}</p>
+              <p><span style={{ color: colors.whiteSubtle }}>Grades:</span> {schoolPopup.gradeLevels || 'N/A'}</p>
+              <p><span style={{ color: colors.whiteSubtle }}>Address:</span> {schoolPopup.address || 'N/A'}</p>
+              {schoolPopup.link && (
+                <a
+                  href={schoolPopup.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-block mt-2 text-[11px] underline"
+                  style={{ color: colors.cyan }}
+                >
+                  View school details
+                </a>
+              )}
             </div>
           </Popup>
         )}

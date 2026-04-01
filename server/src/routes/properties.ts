@@ -250,6 +250,7 @@ propertiesRouter.get('/', (_req, res) => {
 
 // Overlay routes
 let crimeGeoJSON: object | null = null;
+let schoolsGeoJSON: object | null = null;
 let structuresTileIndex: any | null = null;
 
 function loadCrimeGeoJSON() {
@@ -274,6 +275,85 @@ function loadCrimeGeoJSON() {
   crimeGeoJSON = { type: 'FeatureCollection', features: points };
   console.log(`Loaded ${points.length} real crime incidents`);
   return crimeGeoJSON;
+}
+
+type BestSchoolRecord = {
+  name?: string;
+  detailUrl?: string;
+  rating?: number;
+  address?: string;
+  schoolType?: string;
+  sector?: string;
+  gradeLevels?: string;
+  levelCode?: string;
+  page?: number;
+  longitude?: number;
+  latitude?: number;
+};
+
+function clamp01(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  if (n <= 0) return 0;
+  if (n >= 1) return 1;
+  return n;
+}
+
+function hashStringToUInt32(value: string): number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+/**
+ * The GreatSchools dump currently has no lat/lng, so we create stable pseudo-points
+ * around Salt Lake City center until a true geocoding step is added.
+ */
+function pseudoSchoolCoordinates(seed: string): [number, number] {
+  const centerLng = -111.891;
+  const centerLat = 40.7608;
+  const h = hashStringToUInt32(seed);
+  const angle = (h % 360) * (Math.PI / 180);
+  const radiusMiles = 0.4 + ((h >>> 8) % 95) / 10; // 0.4 ~ 9.8 mi
+  const dLat = (radiusMiles / 69) * Math.sin(angle);
+  const dLng = (radiusMiles / (69 * Math.max(0.2, Math.cos((centerLat * Math.PI) / 180)))) * Math.cos(angle);
+  return [centerLng + dLng, centerLat + dLat];
+}
+
+function loadSchoolsGeoJSON() {
+  if (schoolsGeoJSON) return schoolsGeoJSON;
+  const filePath = join(__dirname, '..', 'data', 'schools', 'salt-lake-city-best-schools.geocoded.json');
+  const raw = JSON.parse(readFileSync(filePath, 'utf-8')) as { schools?: BestSchoolRecord[] };
+  const schools = Array.isArray(raw.schools) ? raw.schools : [];
+  const features = schools.map((s, idx) => {
+    const rating = typeof s.rating === 'number' && Number.isFinite(s.rating) ? s.rating : null;
+    const hasLng = typeof s.longitude === 'number' && Number.isFinite(s.longitude);
+    const hasLat = typeof s.latitude === 'number' && Number.isFinite(s.latitude);
+    const [lng, lat] = hasLng && hasLat
+      ? [s.longitude, s.latitude]
+      : pseudoSchoolCoordinates(`${s.name || ''}|${s.address || ''}|${idx}`);
+    return {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [lng, lat] },
+      properties: {
+        intensity: clamp01((rating ?? 0) / 10),
+        name: s.name || '',
+        type: s.schoolType || s.sector || 'school',
+        rating: rating ?? undefined,
+        gradeLevels: s.gradeLevels || '',
+        levelCode: s.levelCode || '',
+        address: s.address || '',
+        link: s.detailUrl || '',
+        page: s.page || 0,
+        geocoded: hasLng && hasLat,
+      },
+    };
+  });
+  schoolsGeoJSON = { type: 'FeatureCollection', features };
+  console.log(`Loaded ${features.length} schools from geocoded best-schools dataset`);
+  return schoolsGeoJSON;
 }
 
 function loadStructuresTileIndex() {
@@ -340,6 +420,15 @@ propertiesRouter.get('/overlays/:type', (req, res) => {
       return;
     } catch (e) {
       console.error('Failed to load real crime data:', e);
+    }
+  }
+
+  if (type === 'schools') {
+    try {
+      res.json(loadSchoolsGeoJSON());
+      return;
+    } catch (e) {
+      console.error('Failed to load schools data from best-schools JSON:', e);
     }
   }
 
