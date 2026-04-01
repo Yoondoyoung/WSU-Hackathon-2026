@@ -48,6 +48,7 @@ const FIELD_DEFAULTS = {
   loanAmount: 300000,
   downPayment: 80000,
 };
+const DESCRIPTION_PREVIEW_CHARS = 260;
 
 function computePayload(f: typeof FIELD_DEFAULTS, property: Property): MortgageRequestPayload {
   const propertyValue = property.price ?? (f.loanAmount + f.downPayment);
@@ -330,7 +331,17 @@ function MortgagePredictorPanel({ property }: { property: Property }) {
 
 export function PropertyDetail({ property, onClose }: Props) {
   const [photoIdx, setPhotoIdx] = useState(0);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const photos = property.photos.length > 0 ? property.photos : [property.imageUrl];
+  const descriptionText = property.description?.trim() ?? '';
+  const shouldTruncateDescription = descriptionText.length > DESCRIPTION_PREVIEW_CHARS;
+  const visibleDescription = shouldTruncateDescription && !isDescriptionExpanded
+    ? `${descriptionText.slice(0, DESCRIPTION_PREVIEW_CHARS).trimEnd()}...`
+    : descriptionText;
+
+  useEffect(() => {
+    setIsDescriptionExpanded(false);
+  }, [property.id]);
 
   const prevPhoto = () => setPhotoIdx((i) => (i - 1 + photos.length) % photos.length);
   const nextPhoto = () => setPhotoIdx((i) => (i + 1) % photos.length);
@@ -431,9 +442,18 @@ export function PropertyDetail({ property, onClose }: Props) {
               </div>
 
               {/* Description */}
-              {property.description && (
+              {descriptionText && (
                 <Section title="Description" icon={Building}>
-                  <p className="text-[#8888a8] text-xs leading-relaxed">{property.description}</p>
+                  <p className="text-[#8888a8] text-xs leading-relaxed">{visibleDescription}</p>
+                  {shouldTruncateDescription && (
+                    <button
+                      type="button"
+                      onClick={() => setIsDescriptionExpanded((prev) => !prev)}
+                      className="mt-2 text-[11px] font-semibold text-[#818cf8] hover:text-[#a5b4fc] transition-colors"
+                    >
+                      {isDescriptionExpanded ? 'Show less' : 'Show more'}
+                    </button>
+                  )}
                 </Section>
               )}
 
