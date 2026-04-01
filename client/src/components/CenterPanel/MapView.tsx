@@ -564,44 +564,6 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
         })}
       </Map>
 
-      {/* Viewport marker count badge + price mode toggle */}
-      <div className="absolute top-3 left-3 z-[11] flex items-center gap-2">
-        <div
-          className="pointer-events-none"
-          style={{
-            ...glass.pill,
-            borderRadius: 8,
-            padding: '5px 10px',
-            fontSize: 11,
-            color: colors.whiteMuted,
-            letterSpacing: '0.02em',
-          }}
-        >
-          {visibleProperties.length} of {properties.length} listings in view
-        </div>
-        <button
-          type="button"
-          onClick={() => onMapPriceModeChange(mapPriceMode === 'listing' ? 'netMonthly' : 'listing')}
-          style={{
-            ...glass.pill,
-            borderRadius: 8,
-            padding: '5px 10px',
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: '0.02em',
-            color: mapPriceMode === 'netMonthly' ? colors.cyan : colors.whiteMuted,
-            border: `1px solid ${mapPriceMode === 'netMonthly' ? colors.cyan : colors.border}`,
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
-        >
-          {mapPriceMode === 'netMonthly' ? '$/mo' : 'Price'}
-          <span style={{ color: colors.whiteSubtle, marginLeft: 4, fontSize: 10 }}>
-            {mapPriceMode === 'listing' ? '→ $/mo' : '→ Price'}
-          </span>
-        </button>
-      </div>
-
       {/* Building footprints legend — fixed bottom-right of map (left of 360px panel on desktop) */}
       {activeOverlays.has('structures') && (
         <div

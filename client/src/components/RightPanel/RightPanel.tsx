@@ -406,7 +406,12 @@ export function RightPanel({ properties, selectedId, onSelectProperty, loading, 
       >
         {/* Header */}
         <div className="flex-shrink-0 px-4 pt-4 pb-3" style={{ borderBottom: `1px solid ${colors.border}` }}>
-          <h2 className="text-sm font-bold tracking-wide" style={{ color: colors.white }}>Properties</h2>
+          <h2
+            className="text-sm font-bold tracking-wide"
+            style={{ color: colors.white, fontFamily: "'Space Grotesk', 'Inter', sans-serif" }}
+          >
+            Properties
+          </h2>
           <p className="text-[10px] mt-0.5" style={{ color: colors.whiteMuted }}>
             {loading ? 'Loading...' : `${properties.length} listings`}
           </p>

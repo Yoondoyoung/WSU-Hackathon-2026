@@ -91,7 +91,7 @@ export default function App() {
           className="flex items-center gap-3 px-5 py-2.5"
           style={{
             ...glass.pill,
-            borderRadius: 40,
+            borderRadius: 12,
             boxShadow: '0 4px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05)',
           }}
         >
@@ -99,7 +99,12 @@ export default function App() {
             <div className="absolute w-4 h-4 rounded-full animate-ping" style={{ background: 'rgba(0,200,255,0.2)' }} />
             <div className="w-2 h-2 rounded-full" style={{ background: colors.cyan, boxShadow: `0 0 8px ${colors.cyan}, 0 0 20px rgba(0,200,255,0.3)` }} />
           </div>
-          <span className="text-sm font-semibold tracking-widest uppercase" style={{ color: colors.white, letterSpacing: '0.12em' }}>Utah Smart-Path</span>
+          <span
+            className="text-sm font-semibold tracking-widest uppercase"
+            style={{ color: colors.white, letterSpacing: '0.12em', fontFamily: "'Space Grotesk', 'Inter', sans-serif" }}
+          >
+            Utah Smart-Path
+          </span>
           <div style={{ width: 1, height: 14, background: colors.whiteDim }} />
           <span className="text-xs font-medium" style={{ color: colors.whiteMuted, letterSpacing: '0.04em' }}>Salt Lake City</span>
         </div>
@@ -136,7 +141,7 @@ export default function App() {
       {!loading && (
         <div
           className="absolute bottom-5 left-1/2 -translate-x-1/2 z-10 pointer-events-none flex items-center gap-2.5 px-4 py-2"
-          style={{ ...glass.pill, borderRadius: 40 }}
+          style={{ ...glass.pill, borderRadius: 999 }}
         >
           <div className="w-1.5 h-1.5 rounded-full" style={{ background: colors.cyan, boxShadow: `0 0 6px ${colors.cyan}` }} />
           <span className="text-xs font-medium" style={{ color: colors.whiteMuted }}>
