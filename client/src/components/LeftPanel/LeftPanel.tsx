@@ -104,8 +104,6 @@ export function LeftPanel({
   onToggleCollapse,
   priceRange,
   onPriceRangeChange,
-  minSchoolRating,
-  onMinSchoolRatingChange,
 }: Props) {
   const [filtersOpen, setFiltersOpen] = useState(true);
   const minPricePct = ((priceRange[0] - MIN_PRICE) / (MAX_PRICE - MIN_PRICE)) * 100;
@@ -123,7 +121,7 @@ export function LeftPanel({
       {/* Collapse toggle */}
       <button
         onClick={onToggleCollapse}
-        className="absolute right-2 bottom-6 z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
+        className={`absolute z-20 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 bottom-12 ${collapsed ? 'left-1/2 -translate-x-1/2' : 'right-2'}`}
         style={{
           background: colors.bgPanelMedium,
           border: `1px solid ${colors.border}`,
@@ -340,7 +338,7 @@ export function LeftPanel({
 
       {!collapsed && (
         <div className="px-[30px] py-3.5 border-t flex-shrink-0" style={{ borderTopColor: colors.border }}>
-          <p className="text-[9px] font-medium tracking-widest uppercase" style={{ color: colors.whiteFaint }}>
+          <p className="text-[9px] font-medium tracking-widest uppercase" style={{ color: colors.white }}>
             WSU Hackathon · 2026
           </p>
         </div>
