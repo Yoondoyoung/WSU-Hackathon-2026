@@ -4,10 +4,14 @@ import { LeftPanel } from './components/LeftPanel/LeftPanel';
 import { CenterPanel } from './components/CenterPanel/CenterPanel';
 import { RightPanel } from './components/RightPanel/RightPanel';
 import { ConnectionLine } from './components/ConnectionLine';
+import { FloatingPropertyCard } from './components/FloatingPropertyCard';
+import { PropertyCompareView } from './components/PropertyCompareView';
 import { useMapState } from './hooks/useMapState';
 import { useProperties } from './hooks/useProperties';
 import { glass, colors } from './design';
 import { calcTCO, TCO_DEFAULTS, type TcoInputs } from './utils/tcoCalculator';
+
+const SNAP_THRESHOLD = 120; // px
 
 export type MapPriceMode = 'listing' | 'netMonthly';
 
@@ -124,6 +128,69 @@ export default function App() {
     setReopenTrigger(null);
   }, []);
 
+  /* ─── Floating Cards ─────────────────────────────────── */
+  const [floatingCards, setFloatingCards] = useState<{ id: string; x: number; y: number }[]>([]);
+  const [comparePos, setComparePos] = useState<{ x: number; y: number } | null>(null);
+  const [compareIds, setCompareIds] = useState<[string, string] | null>(null);
+
+  const floatingCardIds = useMemo(() => new Set(floatingCards.map((c) => c.id)), [floatingCards]);
+
+  const handleDropOnMap = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('propertyId');
+    if (!id) return;
+    // Avoid duplicates (card already floating)
+    setFloatingCards((prev) => {
+      if (prev.some((c) => c.id === id)) return prev;
+      return [...prev, { id, x: e.clientX - 120, y: e.clientY - 60 }];
+    });
+  }, []);
+
+  const handleFloatMove = useCallback((id: string, x: number, y: number) => {
+    setFloatingCards((prev) => prev.map((c) => c.id === id ? { ...c, x, y } : c));
+  }, []);
+
+  const handleSnapCheck = useCallback((draggedId: string, x: number, y: number) => {
+    setFloatingCards((prev) => {
+      const updated = prev.map((c) => c.id === draggedId ? { ...c, x, y } : c);
+      const dragged = updated.find((c) => c.id === draggedId);
+      if (!dragged) return updated;
+      const target = updated.find((c) => c.id !== draggedId && Math.hypot(c.x - dragged.x, c.y - dragged.y) < SNAP_THRESHOLD);
+      if (target) {
+        const midX = (dragged.x + target.x) / 2 - 240;
+        const midY = (dragged.y + target.y) / 2;
+        setCompareIds([target.id, draggedId]);
+        setComparePos({ x: midX, y: midY });
+        return updated.filter((c) => c.id !== draggedId && c.id !== target.id);
+      }
+      return updated;
+    });
+  }, []);
+
+  const handleFloatClose = useCallback((id: string) => {
+    setFloatingCards((prev) => prev.filter((c) => c.id !== id));
+  }, []);
+
+  const handleCompareMove = useCallback((x: number, y: number) => {
+    setComparePos({ x, y });
+  }, []);
+
+  const handleCompareClose = useCallback(() => {
+    setCompareIds(null);
+    setComparePos(null);
+  }, []);
+
+  const handleCompareSeparate = useCallback(() => {
+    if (!compareIds || !comparePos) return;
+    setFloatingCards((prev) => [
+      ...prev,
+      { id: compareIds[0], x: comparePos.x, y: comparePos.y },
+      { id: compareIds[1], x: comparePos.x + 260, y: comparePos.y },
+    ]);
+    setCompareIds(null);
+    setComparePos(null);
+  }, [compareIds, comparePos]);
+
   const netMonthlyMap = useMemo(() => {
     if (mapPriceMode !== 'netMonthly') return null;
     const map = new Map<string, number>();
@@ -136,7 +203,11 @@ export default function App() {
   return (
     <DashboardLayout>
       {/* Map — full bleed behind panels */}
-      <div className="absolute inset-0">
+      <div
+        className="absolute inset-0"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDropOnMap}
+      >
         <CenterPanel
           viewMode={mapState.viewMode}
           activeOverlays={mapState.activeOverlays}
@@ -221,7 +292,49 @@ export default function App() {
           onShowRoute={handleShowRoute}
           reopenTrigger={reopenTrigger}
           onReopenHandled={handleReopenHandled}
+          floatingCardIds={floatingCardIds}
         />
+      </div>
+
+      {/* Floating property cards layer */}
+      <div className="absolute inset-0 z-[25] pointer-events-none">
+        {floatingCards.map((card) => {
+          const prop = properties.find((p) => p.id === card.id);
+          if (!prop) return null;
+          // Compute snap target: is this card close enough to another floating card?
+          const isSnapTarget = floatingCards.some(
+            (other) => other.id !== card.id && Math.hypot(other.x - card.x, other.y - card.y) < SNAP_THRESHOLD
+          );
+          return (
+            <FloatingPropertyCard
+              key={card.id}
+              property={prop}
+              x={card.x}
+              y={card.y}
+              snapTarget={isSnapTarget}
+              onMove={handleFloatMove}
+              onSnapRelease={handleSnapCheck}
+              onClose={handleFloatClose}
+            />
+          );
+        })}
+
+        {compareIds && comparePos && (() => {
+          const pA = properties.find((p) => p.id === compareIds[0]);
+          const pB = properties.find((p) => p.id === compareIds[1]);
+          if (!pA || !pB) return null;
+          return (
+            <PropertyCompareView
+              propertyA={pA}
+              propertyB={pB}
+              x={comparePos.x}
+              y={comparePos.y}
+              onMove={handleCompareMove}
+              onClose={handleCompareClose}
+              onSeparate={handleCompareSeparate}
+            />
+          );
+        })()}
       </div>
 
     </DashboardLayout>
