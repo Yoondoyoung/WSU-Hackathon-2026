@@ -407,7 +407,7 @@ propertiesRouter.get('/overlays/structures/tiles/:z/:x/:y.pbf', (req, res) => {
 
 propertiesRouter.get('/overlays/:type', (req, res) => {
   const { type } = req.params;
-  const validTypes = ['crime', 'schools', 'population', 'noise', 'structures'];
+  const validTypes = ['crime', 'schools', 'grocery', 'population', 'noise', 'structures'];
 
   if (!validTypes.includes(type)) {
     res.status(400).json({ error: `Invalid overlay type` });
@@ -429,6 +429,19 @@ propertiesRouter.get('/overlays/:type', (req, res) => {
       return;
     } catch (e) {
       console.error('Failed to load schools data from best-schools JSON:', e);
+    }
+  }
+
+  if (type === 'grocery') {
+    try {
+      const path = join(__dirname, '..', 'data', 'groceryList', 'slcGrocery.geojson');
+      const data = JSON.parse(readFileSync(path, 'utf-8'));
+      res.json(data);
+      return;
+    } catch (e) {
+      console.error('Failed to load grocery GeoJSON:', e);
+      res.status(404).json({ error: 'Grocery overlay data not found' });
+      return;
     }
   }
 

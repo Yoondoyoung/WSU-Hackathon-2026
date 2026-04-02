@@ -13,6 +13,7 @@ import {
   DollarSign,
   BedDouble,
   Bath,
+  ShoppingCart,
 } from 'lucide-react';
 import type { MapViewMode, OverlayType } from '../../types/map';
 import { glass, colors } from '../../design';
@@ -74,6 +75,14 @@ const OVERLAY_CONFIG: {
     color: colors.emerald,
     bgColor: 'rgba(16,185,129,0.12)',
     description: 'K-12 quality scores',
+  },
+  {
+    key: 'grocery',
+    label: 'Grocery Stores',
+    icon: ShoppingCart,
+    color: '#fb923c',
+    bgColor: 'rgba(251,146,60,0.12)',
+    description: 'Supermarkets & markets',
   },
   {
     key: 'population',
