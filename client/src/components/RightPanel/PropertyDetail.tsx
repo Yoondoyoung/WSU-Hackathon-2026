@@ -62,7 +62,8 @@ const FIELD_DEFAULTS = {
 const DESCRIPTION_PREVIEW_CHARS = 260;
 
 function computePayload(f: typeof FIELD_DEFAULTS, property: Property): MortgageRequestPayload {
-  const propertyValue = property.price ?? (f.loanAmount + f.downPayment);
+  const propertyValue = property.price > 0 ? property.price : (f.loanAmount + f.downPayment);
+  const loanAmount = Math.max(0, Math.round(propertyValue - f.downPayment));
   const dti = f.annualIncome > 0 ? (f.totalDebt / f.annualIncome) * 100 : 36;
   let dtiStr = '36';
 
@@ -74,7 +75,7 @@ function computePayload(f: typeof FIELD_DEFAULTS, property: Property): MortgageR
   else dtiStr = '50%-60%';
 
   return {
-    loan_amount: f.loanAmount,
+    loan_amount: loanAmount,
     property_value: propertyValue,
     income: Math.round(f.annualIncome / 1000),
     debt_to_income_ratio: dtiStr,
@@ -369,7 +370,29 @@ function MortgagePredictorPanel({ property }: { property: Property }) {
     }));
   }, [property.id, property.price]);
 
-  const set = (key: keyof typeof FIELD_DEFAULTS) => (v: number) => setFields((prev) => ({ ...prev, [key]: v }));
+  const set = (key: keyof typeof FIELD_DEFAULTS) => (v: number) => {
+    if (key === 'downPayment' && property.price > 0) {
+      const downPayment = Math.max(0, v);
+      setFields((prev) => ({
+        ...prev,
+        downPayment,
+        loanAmount: Math.max(0, Math.round(property.price - downPayment)),
+      }));
+      return;
+    }
+
+    if (key === 'loanAmount' && property.price > 0) {
+      const loanAmount = Math.max(0, v);
+      setFields((prev) => ({
+        ...prev,
+        loanAmount,
+        downPayment: Math.max(0, Math.round(property.price - loanAmount)),
+      }));
+      return;
+    }
+
+    setFields((prev) => ({ ...prev, [key]: v }));
+  };
 
   return (
     <div className="bg-[#141427] border border-[#2d2d4a] rounded-xl p-4">
@@ -387,7 +410,7 @@ function MortgagePredictorPanel({ property }: { property: Property }) {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-2 pt-5">
           <MoneyInput label="Annual Income" value={fields.annualIncome} onChange={set('annualIncome')} />
-          <MoneyInput label="Total Debt" value={fields.totalDebt} onChange={set('totalDebt')} />
+          <MoneyInput label="Current Other Debt" value={fields.totalDebt} onChange={set('totalDebt')} />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-2">
           <MoneyInput label="Loan Amount" value={fields.loanAmount} onChange={set('loanAmount')} />
