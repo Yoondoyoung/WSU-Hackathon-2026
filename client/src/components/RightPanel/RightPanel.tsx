@@ -3,7 +3,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown,
   Bed, Bath, Square,
   Volume2, GraduationCap,
-  ShieldAlert, DollarSign, TrendingDown,
+  ShieldAlert, DollarSign, TrendingDown, GripVertical,
 } from 'lucide-react';
 import type { Property } from '../../types/property';
 import { formatPrice, formatSqft } from '../../utils/formatters';
@@ -33,6 +33,8 @@ interface Props {
   reopenTrigger?: { id: string; ts: number } | null;
   /** Called immediately after reopenTrigger is consumed so App can clear it */
   onReopenHandled?: () => void;
+  /** IDs of cards currently detached as floating windows on the map */
+  floatingCardIds?: Set<string>;
 }
 
 /* ─── Badge ────────────────────────────────────────────────── */
@@ -274,11 +276,12 @@ function ExpandedDetail({ property, onOpenDetail }: { property: Property; onOpen
 
 /* ─── Compact Card ─────────────────────────────────────────── */
 function CompactCard({
-  property, selected, dimmed, onClick, onOpenDetail,
+  property, selected, dimmed, floating, onClick, onOpenDetail,
 }: {
   property: Property;
   selected: boolean;
   dimmed: boolean;
+  floating: boolean;
   onClick: () => void;
   onOpenDetail: (property: Property) => void;
 }) {
@@ -289,11 +292,31 @@ function CompactCard({
       className="cursor-pointer transition-opacity duration-150"
       style={{ opacity: dimmed ? 0.35 : 1 }}
       onClick={onClick}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('propertyId', property.id);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
     >
       <div className="flex items-center gap-3 py-2">
-        {/* Thumbnail */}
-        <div className="flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden" style={{ border: selected ? `2px solid ${colors.cyan}` : `1px solid ${colors.border}` }}>
-          <img src={photo} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/56x56/0a1223/00c8ff?text=·'; }} />
+        {/* Drag handle + Thumbnail */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div
+            className="flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            title="Drag onto map to float"
+            style={{ color: colors.whiteMuted, cursor: 'grab' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <GripVertical size={12} />
+          </div>
+          <div className="w-14 h-14 rounded-lg overflow-hidden relative" style={{ border: selected ? `2px solid ${colors.cyan}` : floating ? `2px solid rgba(99,102,241,0.6)` : `1px solid ${colors.border}` }}>
+            <img src={photo} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = 'https://placehold.co/56x56/0a1223/00c8ff?text=·'; }} />
+            {floating && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 8, color: '#fff', fontWeight: 700, letterSpacing: '0.05em' }}>ON MAP</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Text */}
@@ -342,7 +365,7 @@ function scrollChildToVerticalCenter(container: HTMLElement, child: HTMLElement)
 }
 
 /* ─── Main RightPanel ──────────────────────────────────────── */
-export function RightPanel({ properties, selectedId, onSelectProperty, loading, onCardAnchorChange, onShowRoute, reopenTrigger, onReopenHandled }: Props) {
+export function RightPanel({ properties, selectedId, onSelectProperty, loading, onCardAnchorChange, onShowRoute, reopenTrigger, onReopenHandled, floatingCardIds }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedCardRef = useRef<HTMLDivElement>(null);
   const [detailProperty, setDetailProperty] = useState<Property | null>(null);
@@ -444,11 +467,12 @@ export function RightPanel({ properties, selectedId, onSelectProperty, loading, 
             const isSelected = p.id === selectedId;
             const isDimmed = selectedId !== null && !isSelected;
             return (
-              <div key={p.id} ref={isSelected ? selectedCardRef : undefined}>
+              <div key={p.id} ref={isSelected ? selectedCardRef : undefined} className="group">
                 <CompactCard
                   property={p}
                   selected={isSelected}
                   dimmed={isDimmed}
+                  floating={floatingCardIds?.has(p.id) ?? false}
                   onClick={() => onSelectProperty(p.id)}
                   onOpenDetail={setDetailProperty}
                 />
