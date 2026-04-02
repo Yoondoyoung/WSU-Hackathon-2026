@@ -33,6 +33,10 @@ export default function App() {
         cardPosRef.current = null;
         return null;
       }
+      // Selecting a different property clears any active route
+      setRouteRequest(null);
+      setActiveRoute(null);
+      setReopenTrigger(null);
       return id;
     });
   };
