@@ -23,6 +23,18 @@ interface Props {
   onCardAnchorChange: (pos: { x: number; y: number } | null) => void;
   tcoInputs: TcoInputs;
   onTcoInputsChange: (next: TcoInputs) => void;
+  onShowRoute?: (
+    from: [number, number],
+    to: [number, number],
+    toName: string,
+    toAddress: string,
+    sourcePropertyId: string,
+    sourcePropertyAddress: string,
+  ) => void;
+  /** When set, auto-opens PropertyDetail for this property (ts ensures re-trigger on same id) */
+  reopenTrigger?: { id: string; ts: number } | null;
+  /** Called immediately after reopenTrigger is consumed so App can clear it */
+  onReopenHandled?: () => void;
 }
 
 /* ─── Badge ────────────────────────────────────────────────── */
@@ -375,10 +387,30 @@ function scrollChildToVerticalCenter(container: HTMLElement, child: HTMLElement)
 }
 
 /* ─── Main RightPanel ──────────────────────────────────────── */
-export function RightPanel({ properties, selectedId, onSelectProperty, loading, onCardAnchorChange, tcoInputs, onTcoInputsChange }: Props) {
+export function RightPanel({
+  properties,
+  selectedId,
+  onSelectProperty,
+  loading,
+  onCardAnchorChange,
+  tcoInputs,
+  onTcoInputsChange,
+  onShowRoute,
+  reopenTrigger,
+  onReopenHandled,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedCardRef = useRef<HTMLDivElement>(null);
   const [detailProperty, setDetailProperty] = useState<Property | null>(null);
+
+  // Auto-reopen PropertyDetail when App signals a reopen — clear trigger immediately to avoid repeated firing
+  useEffect(() => {
+    if (!reopenTrigger) return;
+    const p = properties.find((prop) => prop.id === reopenTrigger.id);
+    if (p) setDetailProperty(p);
+    onReopenHandled?.();          // tell App to set reopenTrigger → null right away
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reopenTrigger]);            // intentionally omit properties/onReopenHandled to fire only when trigger changes
 
   // Center selected row in the list viewport (re-run when card height changes, e.g. accordion open)
   useEffect(() => {
@@ -495,6 +527,7 @@ export function RightPanel({ properties, selectedId, onSelectProperty, loading, 
           onClose={() => setDetailProperty(null)}
           tcoInputs={tcoInputs}
           onTcoInputsChange={onTcoInputsChange}
+          onShowRoute={onShowRoute}
         />
       )}
     </>

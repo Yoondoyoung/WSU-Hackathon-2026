@@ -1,9 +1,10 @@
-import { useEffect, useState, useMemo, type ElementType, type ReactNode } from 'react';
+import { useEffect, useState, useMemo, useCallback, type ElementType, type ReactNode } from 'react';
 import {
   X, ChevronLeft, ChevronRight, Bed, Bath, Square, Flame, Snowflake, Car, Wrench, Building,
   GraduationCap, User, Phone, Clock, Eye, Heart, TrendingUp, ExternalLink, ShieldAlert,
-  AlertCircle, DollarSign, TrendingDown, Lightbulb, ArrowUp,
+  AlertCircle, DollarSign, TrendingDown, Lightbulb, ArrowUp, ShoppingCart, Navigation,
 } from 'lucide-react';
+import { useNearbyGrocery } from '../../hooks/useNearbyGrocery';
 import { useMortgagePredictor, type ScenarioResult } from '../../hooks/useMortgagePredictor';
 import type { MortgageRequestPayload } from '../../types/mortgage';
 import type { Property } from '../../types/property';
@@ -17,6 +18,14 @@ interface Props {
   onClose: () => void;
   tcoInputs: TcoInputs;
   onTcoInputsChange: (next: TcoInputs) => void;
+  onShowRoute?: (
+    from: [number, number],
+    to: [number, number],
+    toName: string,
+    toAddress: string,
+    sourcePropertyId: string,
+    sourcePropertyAddress: string,
+  ) => void;
 }
 
 function Section({ title, icon: Icon, children }: { title: string; icon: ElementType; children: ReactNode }) {
@@ -372,9 +381,96 @@ function MortgagePredictorPanel({ property }: { property: Property }) {
   );
 }
 
-export function PropertyDetail({ property, onClose, tcoInputs, onTcoInputsChange }: Props) {
+function NearbyGroceryPanel({
+  property,
+  onShowRoute,
+}: {
+  property: Property;
+  onShowRoute?: (from: [number, number], to: [number, number], toName: string, toAddress: string) => void;
+}) {
+  const [radius, setRadius] = useState<0.5 | 1.0>(0.5);
+  const { stores, loading } = useNearbyGrocery(property, radius);
+
+  return (
+    <div className="rounded-xl border border-[#2d2d4a] bg-[#0f0f1a] p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="flex items-center gap-2 text-[#e2e2f0] text-sm font-semibold">
+          <ShoppingCart size={14} className="text-[#6366f1]" />
+          Nearby Grocery
+        </h3>
+        <div className="flex rounded-lg overflow-hidden border border-[#2d2d4a] text-[10px] font-semibold">
+          {([0.5, 1.0] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRadius(r)}
+              className="px-2.5 py-1 transition-colors"
+              style={{
+                background: radius === r ? '#6366f1' : 'transparent',
+                color: radius === r ? '#fff' : colors.whiteMuted,
+              }}
+            >
+              {r} mi
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading && (
+        <p className="text-[#8888a8] text-xs text-center py-3">Searching nearby stores…</p>
+      )}
+      {!loading && stores.length === 0 && (
+        <p className="text-[#8888a8] text-xs text-center py-3">No grocery stores within {radius} mi</p>
+      )}
+      {!loading && stores.length > 0 && (
+        <div className="space-y-1.5">
+          {stores.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onShowRoute?.(property.coordinates, s.coordinates, s.name, s.address)}
+              className="w-full flex items-center gap-3 rounded-lg p-2.5 text-left transition-colors hover:bg-[#1a1a2e] group"
+              style={{ border: `1px solid transparent` }}
+            >
+              <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                style={{ background: '#6366f125', border: '1px solid #6366f150' }}>
+                <ShoppingCart size={13} className="text-[#6366f1]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[#e2e2f0] text-xs font-medium truncate">{s.name}</p>
+                <p className="text-[#8888a8] text-[10px] truncate">{s.address}</p>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{
+                    background: s.distanceMiles <= 0.3 ? '#16a34a25' : s.distanceMiles <= 0.7 ? '#ca8a0425' : '#64748b25',
+                    color: s.distanceMiles <= 0.3 ? '#4ade80' : s.distanceMiles <= 0.7 ? '#fbbf24' : '#94a3b8',
+                  }}>
+                  {s.distanceMiles} mi
+                </span>
+                <Navigation size={11} className="text-[#6366f1] opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+      {onShowRoute && stores.length > 0 && (
+        <p className="text-[#8888a8] text-[10px] text-center">Tap a store to show walking route on map</p>
+      )}
+    </div>
+  );
+}
+
+export function PropertyDetail({ property, onClose, tcoInputs, onTcoInputsChange, onShowRoute }: Props) {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+
+  // Close modal first, then bubble route request with source property context
+  const handleGroceryRoute = useCallback(
+    (from: [number, number], to: [number, number], toName: string, toAddress: string) => {
+      onClose();
+      onShowRoute?.(from, to, toName, toAddress, property.id, property.streetAddress);
+    },
+    [onClose, onShowRoute, property.id, property.streetAddress],
+  );
   const photos = property.photos.length > 0 ? property.photos : [property.imageUrl];
   const descriptionText = property.description?.trim() ?? '';
   const shouldTruncateDescription = descriptionText.length > DESCRIPTION_PREVIEW_CHARS;
@@ -533,6 +629,9 @@ export function PropertyDetail({ property, onClose, tcoInputs, onTcoInputsChange
                   </Section>
                 )}
               </div>
+
+              {/* Nearby Grocery */}
+              <NearbyGroceryPanel property={property} onShowRoute={handleGroceryRoute} />
 
               {/* Schools */}
               {property.schools.length > 0 && (

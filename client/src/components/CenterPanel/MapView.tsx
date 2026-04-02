@@ -30,10 +30,17 @@ const MAP_STYLES: Record<MapViewMode, string> = {
   '3d': 'mapbox://styles/mapbox/dark-v11',
 };
 
+/** Large statewide file: load via URL so Mapbox fetches/parses off the React state path (avoids freezing other layers). */
+const GROCERY_GEOJSON_URL =
+  typeof window !== 'undefined'
+    ? `${window.location.origin}/api/properties/overlays/grocery`
+    : '/api/properties/overlays/grocery';
+
 // Heatmap color ramps aligned with design.ts
 const OVERLAY_COLORS: Record<OverlayType, string[]> = {
   crime:      ['rgba(0,0,0,0)', '#7f1d1d', '#ff4060', colors.red],
   schools:    ['rgba(0,0,0,0)', '#064e3b', '#00b862', colors.emerald],
+  grocery:    ['rgba(0,0,0,0)', '#422006', '#ea580c', '#fb923c'],
   population: ['rgba(0,0,0,0)', '#3b2000', '#d47f00', colors.yellow],
   noise:      ['rgba(0,0,0,0)', '#2e1065', '#7c3aed', '#c084fc'],
   structures: ['rgba(0,0,0,0)', '#0c3f5c', '#0090c8', colors.cyan],
@@ -70,6 +77,15 @@ interface Props {
   onMarkerScreenPosition?: (pos: { x: number; y: number } | null) => void;
   mapPriceMode: MapPriceMode;
   netMonthlyMap: Map<string, number> | null;
+  activeRoute?: {
+    geometry: { type: 'LineString'; coordinates: [number, number][] };
+    toCoordinates: [number, number];
+    toName: string;
+    toAddress: string;
+    sourcePropertyAddress: string;
+  } | null;
+  onClearRoute?: () => void;
+  onReopenDetail?: () => void;
 }
 
 interface CrimePopupData {
@@ -90,6 +106,14 @@ interface SchoolPopupData {
   gradeLevels?: string;
   address?: string;
   link?: string;
+}
+
+interface GroceryPopupData {
+  longitude: number;
+  latitude: number;
+  name?: string;
+  address?: string;
+  type?: string;
 }
 
 function GlowMarker({
@@ -209,7 +233,7 @@ function getBoundsFromMap(map: ReturnType<MapRef['getMap']>, padFraction = 0.12)
   };
 }
 
-function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSelectProperty, onMarkerScreenPosition, mapPriceMode, netMonthlyMap }: Props) {
+function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSelectProperty, onMarkerScreenPosition, mapPriceMode, netMonthlyMap, activeRoute, onClearRoute, onReopenDetail }: Props) {
   const mapRef = useRef<MapRef>(null);
   const [overlayData, setOverlayData] = useState<Record<string, GeoJSON.FeatureCollection>>({});
   const overlayDataRef = useRef(overlayData);
@@ -220,6 +244,7 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
   );
   const [crimePopup, setCrimePopup] = useState<CrimePopupData | null>(null);
   const [schoolPopup, setSchoolPopup] = useState<SchoolPopupData | null>(null);
+  const [groceryPopup, setGroceryPopup] = useState<GroceryPopupData | null>(null);
   const structuresTileUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/api/properties/overlays/structures/tiles/{z}/{x}/{y}.pbf`
@@ -282,6 +307,8 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
   // the effect on every fetch and could block or thrash layers). Skip if already cached in ref.
   useEffect(() => {
     activeOverlays.forEach((overlay) => {
+      if (overlay === 'grocery') return; // URL-backed source; do not pull multi‑MB JSON into React state
+      if (overlay === 'structures') return; // vector tiles only; no overview GeoJSON dots
       if (overlayDataRef.current[overlay]) return;
       fetchOverlay(overlay)
         .then((data) => {
@@ -331,6 +358,28 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
           link: props.link,
         });
         setCrimePopup(null);
+        setGroceryPopup(null);
+        return;
+      }
+    }
+
+    const groceryFeature = evt.features?.find((f: any) => f.layer?.id === 'grocery-points');
+    if (groceryFeature) {
+      const coords = groceryFeature.geometry?.coordinates;
+      if (Array.isArray(coords) && coords.length >= 2) {
+        const props = groceryFeature.properties ?? {};
+        const name = props.name ?? props.NAME;
+        const address = props.address ?? props.STREETADDR;
+        const typeStr = props.type ?? props.TYPE;
+        setGroceryPopup({
+          longitude: coords[0],
+          latitude: coords[1],
+          name: typeof name === 'string' ? name : undefined,
+          address: typeof address === 'string' ? address : undefined,
+          type: typeof typeStr === 'string' ? typeStr : undefined,
+        });
+        setCrimePopup(null);
+        setSchoolPopup(null);
         return;
       }
     }
@@ -351,6 +400,7 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
       date: props.date,
     });
     setSchoolPopup(null);
+    setGroceryPopup(null);
   }, []);
 
   return (
@@ -375,6 +425,7 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
         interactiveLayerIds={[
           ...(activeOverlays.has('crime') ? ['crime-points'] : []),
           ...(activeOverlays.has('schools') ? ['schools-points'] : []),
+          ...(activeOverlays.has('grocery') ? ['grocery-points'] : []),
         ]}
         mapStyle={MAP_STYLES[viewMode]}
         mapboxAccessToken={MAPBOX_TOKEN}
@@ -398,76 +449,77 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
           </Source>
         )}
 
-        {/* Structures vector tiles */}
+        {/* Structures: vector tiles only (no zoomed-out overview dots) */}
         {activeOverlays.has('structures') && (
-          <>
-            {overlayData.structures && (
-              <Source id="source-structures-overview" type="geojson" data={overlayData.structures}>
-                <Layer
-                  id="structures-overview-circles"
-                  type="circle"
-                  maxzoom={14}
-                  paint={{
-                    'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 1.2, 12, 1.8, 14, 2.4],
-                    'circle-color': '#22d3ee',
-                    'circle-opacity': 0.35,
-                  }}
-                />
-              </Source>
-            )}
-            <Source
-              id="source-structures-vt"
-              type="vector"
-              tiles={[structuresTileUrl]}
-              minzoom={10}
-              maxzoom={18}
-            >
-              <Layer
-                id="structures-fill"
-                type="fill"
-                source="source-structures-vt"
-                source-layer="structures"
-                minzoom={13}
-                paint={{
-                  'fill-color': [
-                    'match', ['get', 'OCC_CLS'],
-                    'Residential', '#22c55e',
-                    'Government', '#3b82f6',
-                    'Commercial', '#ef4444',
-                    'Education', '#facc15',
-                    'Industrial', '#6b7280',
-                    '#4b5563',
-                  ],
-                  'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.04, 15, 0.1, 18, 0.18],
-                }}
-              />
-              <Layer
-                id="structures-outline"
-                type="line"
-                source="source-structures-vt"
-                source-layer="structures"
-                minzoom={14}
-                paint={{
-                  'line-color': [
-                    'match', ['get', 'OCC_CLS'],
-                    'Residential', '#15803d',
-                    'Government', '#1d4ed8',
-                    'Commercial', '#b91c1c',
-                    'Education', '#ca8a04',
-                    'Industrial', '#374151',
-                    '#1f2937',
-                  ],
-                  'line-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.25, 16, 0.6, 19, 0.9],
-                  'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 16, 0.9, 19, 1.6],
-                }}
-              />
-            </Source>
-          </>
+          <Source
+            id="source-structures-vt"
+            type="vector"
+            tiles={[structuresTileUrl]}
+            minzoom={10}
+            maxzoom={18}
+          >
+            <Layer
+              id="structures-fill"
+              type="fill"
+              source="source-structures-vt"
+              source-layer="structures"
+              minzoom={13}
+              paint={{
+                'fill-color': [
+                  'match', ['get', 'OCC_CLS'],
+                  'Residential', '#22c55e',
+                  'Government', '#3b82f6',
+                  'Commercial', '#ef4444',
+                  'Education', '#facc15',
+                  'Industrial', '#6b7280',
+                  '#4b5563',
+                ],
+                'fill-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.04, 15, 0.1, 18, 0.18],
+              }}
+            />
+            <Layer
+              id="structures-outline"
+              type="line"
+              source="source-structures-vt"
+              source-layer="structures"
+              minzoom={14}
+              paint={{
+                'line-color': [
+                  'match', ['get', 'OCC_CLS'],
+                  'Residential', '#15803d',
+                  'Government', '#1d4ed8',
+                  'Commercial', '#b91c1c',
+                  'Education', '#ca8a04',
+                  'Industrial', '#374151',
+                  '#1f2937',
+                ],
+                'line-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.25, 16, 0.6, 19, 0.9],
+                'line-width': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 16, 0.9, 19, 1.6],
+              }}
+            />
+          </Source>
+        )}
+
+        {activeOverlays.has('grocery') && (
+          <Source id="source-grocery" type="geojson" data={GROCERY_GEOJSON_URL}>
+            <Layer
+              id="grocery-points"
+              type="circle"
+              minzoom={9}
+              paint={{
+                'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3, 12, 4.5, 16, 7],
+                'circle-color': '#fb923c',
+                'circle-opacity': ['interpolate', ['linear'], ['zoom'], 9, 0.75, 14, 0.9],
+                'circle-stroke-color': '#431407',
+                'circle-stroke-width': 1,
+              }}
+            />
+          </Source>
         )}
 
         {/* Other heatmap overlays */}
         {Array.from(activeOverlays).map((overlay) =>
-          overlay !== 'structures' && overlay !== 'crime' && overlayData[overlay] ? (
+          overlay !== 'structures' && overlay !== 'crime' && overlay !== 'grocery' && overlayData[overlay] ? (
             <Source key={overlay} id={`source-${overlay}`} type="geojson" data={overlayData[overlay]}>
               <Layer {...heatmapLayer(overlay)} />
               {overlay === 'schools' && (
@@ -536,6 +588,78 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
           </Popup>
         )}
 
+        {groceryPopup && (
+          <Popup
+            longitude={groceryPopup.longitude}
+            latitude={groceryPopup.latitude}
+            anchor="top"
+            onClose={() => setGroceryPopup(null)}
+            closeOnClick={false}
+          >
+            <div className="text-xs leading-relaxed min-w-52">
+              <p className="font-semibold mb-1" style={{ color: '#fb923c' }}>
+                {groceryPopup.name || 'Grocery'}
+              </p>
+              {groceryPopup.type && (
+                <p><span style={{ color: colors.whiteSubtle }}>Type:</span> {groceryPopup.type}</p>
+              )}
+              {groceryPopup.address && (
+                <p><span style={{ color: colors.whiteSubtle }}>Address:</span> {groceryPopup.address}</p>
+              )}
+            </div>
+          </Popup>
+        )}
+
+        {/* Walking route layer */}
+        {activeRoute && (
+          <Source
+            id="active-route"
+            type="geojson"
+            data={{ type: 'Feature' as const, geometry: activeRoute.geometry, properties: {} }}
+          >
+            <Layer
+              id="active-route-casing"
+              type="line"
+              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+              paint={{ 'line-color': '#000000', 'line-width': 6, 'line-opacity': 0.4 }}
+            />
+            <Layer
+              id="active-route-line"
+              type="line"
+              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+              paint={{
+                'line-color': colors.cyan,
+                'line-width': 3.5,
+                'line-opacity': 0.9,
+                'line-dasharray': [1.5, 1.2],
+              }}
+            />
+          </Source>
+        )}
+
+        {/* Route destination popup (grocery store) */}
+        {activeRoute && (
+          <Popup
+            longitude={activeRoute.toCoordinates[0]}
+            latitude={activeRoute.toCoordinates[1]}
+            anchor="bottom"
+            closeButton={false}
+            closeOnClick={false}
+            offset={14}
+            style={{ zIndex: 30 }}
+          >
+            <div style={{ background: '#1a1a2e', border: `1px solid ${colors.indigo}60`, borderRadius: 10, padding: '8px 12px', minWidth: 160, maxWidth: 220, boxShadow: '0 4px 20px rgba(0,0,0,0.6)' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span style={{ fontSize: 14 }}>🛒</span>
+                <p style={{ color: '#e2e2f0', fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.3 }}>{activeRoute.toName}</p>
+              </div>
+              {activeRoute.toAddress && (
+                <p style={{ color: '#8888a8', fontSize: 10, margin: 0 }}>{activeRoute.toAddress}</p>
+              )}
+            </div>
+          </Popup>
+        )}
+
         {/* Glowing property markers — viewport-clipped for performance */}
         {visibleProperties.map((property) => {
           let markerLabel: string | undefined;
@@ -562,6 +686,45 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
           );
         })}
       </Map>
+
+      {/* Active route banner */}
+      {activeRoute && (
+        <div
+          className="absolute z-[12] top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-auto"
+          style={{ maxWidth: 'calc(100% - 380px - 40px)' }}
+        >
+          {/* Route info row */}
+          <div
+            className="flex items-center gap-2.5 px-4 py-2 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap"
+            style={{ background: '#0f0f1aee', border: `1px solid ${colors.cyan}60`, color: colors.cyan, boxShadow: `0 0 16px ${colors.cyan}40` }}
+          >
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors.cyan, flexShrink: 0, display: 'inline-block', boxShadow: `0 0 6px ${colors.cyan}` }} />
+            <span className="truncate max-w-[240px]">Walking route → {activeRoute.toName}</span>
+            {onClearRoute && (
+              <button
+                onClick={onClearRoute}
+                className="ml-1 hover:opacity-70 transition-opacity flex-shrink-0"
+                style={{ color: colors.whiteMuted }}
+                aria-label="Clear route"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {/* Reopen property detail hint */}
+          {onReopenDetail && activeRoute.sourcePropertyAddress && (
+            <button
+              onClick={onReopenDetail}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-medium transition-all hover:brightness-110 active:scale-95"
+              style={{ background: '#1a1a2eee', border: `1px solid ${colors.indigo}60`, color: '#a5b4fc', boxShadow: '0 2px 12px rgba(0,0,0,0.4)' }}
+            >
+              <span>🏠</span>
+              <span className="truncate max-w-[220px]">{activeRoute.sourcePropertyAddress}</span>
+              <span style={{ color: colors.whiteMuted }}>· Click to reopen details</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Building footprints legend — fixed bottom-right of map (left of 360px panel on desktop) */}
       {activeOverlays.has('structures') && (
