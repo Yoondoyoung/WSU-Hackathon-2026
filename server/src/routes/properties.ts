@@ -405,6 +405,55 @@ propertiesRouter.get('/overlays/structures/tiles/:z/:x/:y.pbf', (req, res) => {
   }
 });
 
+const NEARBY_GROCERY_TYPES = new Set([
+  'Grocery Store',
+  'Supermarket',
+  'Health Food',
+  'Specialty Grocery',
+]);
+
+propertiesRouter.get('/nearby-grocery', (req, res) => {
+  const lat = parseFloat(req.query.lat as string);
+  const lng = parseFloat(req.query.lng as string);
+  const miles = parseFloat((req.query.miles as string) ?? '1.0');
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    res.status(400).json({ error: 'lat and lng are required' });
+    return;
+  }
+
+  try {
+    const filePath = join(__dirname, '..', 'data', 'groceryList', 'slcGrocery.geojson');
+    const raw = JSON.parse(readFileSync(filePath, 'utf-8')) as {
+      features: { type: string; geometry: { coordinates: [number, number] }; properties: Record<string, unknown> }[];
+    };
+
+    const results = raw.features
+      .filter((f) => {
+        const type = f.properties?.TYPE as string | undefined;
+        return type && NEARBY_GROCERY_TYPES.has(type);
+      })
+      .map((f) => {
+        const [fLng, fLat] = f.geometry.coordinates;
+        return {
+          ...f,
+          properties: {
+            ...f.properties,
+            distanceMiles: Math.round(haversineMiles(lat, lng, fLat, fLng) * 100) / 100,
+          },
+        };
+      })
+      .filter((f) => (f.properties.distanceMiles as number) <= miles)
+      .sort((a, b) => (a.properties.distanceMiles as number) - (b.properties.distanceMiles as number))
+      .slice(0, 8);
+
+    res.json({ type: 'FeatureCollection', features: results });
+  } catch (e) {
+    console.error('nearby-grocery error:', e);
+    res.status(500).json({ error: 'Failed to query nearby grocery' });
+  }
+});
+
 propertiesRouter.get('/overlays/:type', (req, res) => {
   const { type } = req.params;
   const validTypes = ['crime', 'schools', 'grocery', 'population', 'noise', 'structures'];

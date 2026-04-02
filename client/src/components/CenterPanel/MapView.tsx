@@ -77,6 +77,15 @@ interface Props {
   onMarkerScreenPosition?: (pos: { x: number; y: number } | null) => void;
   mapPriceMode: MapPriceMode;
   netMonthlyMap: Map<string, number> | null;
+  activeRoute?: {
+    geometry: { type: 'LineString'; coordinates: [number, number][] };
+    toCoordinates: [number, number];
+    toName: string;
+    toAddress: string;
+    sourcePropertyAddress: string;
+  } | null;
+  onClearRoute?: () => void;
+  onReopenDetail?: () => void;
 }
 
 interface CrimePopupData {
@@ -224,7 +233,7 @@ function getBoundsFromMap(map: ReturnType<MapRef['getMap']>, padFraction = 0.12)
   };
 }
 
-function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSelectProperty, onMarkerScreenPosition, mapPriceMode, netMonthlyMap }: Props) {
+function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSelectProperty, onMarkerScreenPosition, mapPriceMode, netMonthlyMap, activeRoute, onClearRoute, onReopenDetail }: Props) {
   const mapRef = useRef<MapRef>(null);
   const [overlayData, setOverlayData] = useState<Record<string, GeoJSON.FeatureCollection>>({});
   const overlayDataRef = useRef(overlayData);
@@ -601,6 +610,56 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
           </Popup>
         )}
 
+        {/* Walking route layer */}
+        {activeRoute && (
+          <Source
+            id="active-route"
+            type="geojson"
+            data={{ type: 'Feature' as const, geometry: activeRoute.geometry, properties: {} }}
+          >
+            <Layer
+              id="active-route-casing"
+              type="line"
+              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+              paint={{ 'line-color': '#000000', 'line-width': 6, 'line-opacity': 0.4 }}
+            />
+            <Layer
+              id="active-route-line"
+              type="line"
+              layout={{ 'line-join': 'round', 'line-cap': 'round' }}
+              paint={{
+                'line-color': colors.cyan,
+                'line-width': 3.5,
+                'line-opacity': 0.9,
+                'line-dasharray': [1.5, 1.2],
+              }}
+            />
+          </Source>
+        )}
+
+        {/* Route destination popup (grocery store) */}
+        {activeRoute && (
+          <Popup
+            longitude={activeRoute.toCoordinates[0]}
+            latitude={activeRoute.toCoordinates[1]}
+            anchor="bottom"
+            closeButton={false}
+            closeOnClick={false}
+            offset={14}
+            style={{ zIndex: 30 }}
+          >
+            <div style={{ background: '#1a1a2e', border: `1px solid ${colors.indigo}60`, borderRadius: 10, padding: '8px 12px', minWidth: 160, maxWidth: 220, boxShadow: '0 4px 20px rgba(0,0,0,0.6)' }}>
+              <div className="flex items-center gap-2 mb-1">
+                <span style={{ fontSize: 14 }}>🛒</span>
+                <p style={{ color: '#e2e2f0', fontSize: 12, fontWeight: 600, margin: 0, lineHeight: 1.3 }}>{activeRoute.toName}</p>
+              </div>
+              {activeRoute.toAddress && (
+                <p style={{ color: '#8888a8', fontSize: 10, margin: 0 }}>{activeRoute.toAddress}</p>
+              )}
+            </div>
+          </Popup>
+        )}
+
         {/* Glowing property markers — viewport-clipped for performance */}
         {visibleProperties.map((property) => {
           let markerLabel: string | undefined;
@@ -627,6 +686,45 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
           );
         })}
       </Map>
+
+      {/* Active route banner */}
+      {activeRoute && (
+        <div
+          className="absolute z-[12] top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 pointer-events-auto"
+          style={{ maxWidth: 'calc(100% - 380px - 40px)' }}
+        >
+          {/* Route info row */}
+          <div
+            className="flex items-center gap-2.5 px-4 py-2 rounded-full text-xs font-semibold shadow-lg whitespace-nowrap"
+            style={{ background: '#0f0f1aee', border: `1px solid ${colors.cyan}60`, color: colors.cyan, boxShadow: `0 0 16px ${colors.cyan}40` }}
+          >
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: colors.cyan, flexShrink: 0, display: 'inline-block', boxShadow: `0 0 6px ${colors.cyan}` }} />
+            <span className="truncate max-w-[240px]">Walking route → {activeRoute.toName}</span>
+            {onClearRoute && (
+              <button
+                onClick={onClearRoute}
+                className="ml-1 hover:opacity-70 transition-opacity flex-shrink-0"
+                style={{ color: colors.whiteMuted }}
+                aria-label="Clear route"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          {/* Reopen property detail hint */}
+          {onReopenDetail && activeRoute.sourcePropertyAddress && (
+            <button
+              onClick={onReopenDetail}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[11px] font-medium transition-all hover:brightness-110 active:scale-95"
+              style={{ background: '#1a1a2eee', border: `1px solid ${colors.indigo}60`, color: '#a5b4fc', boxShadow: '0 2px 12px rgba(0,0,0,0.4)' }}
+            >
+              <span>🏠</span>
+              <span className="truncate max-w-[220px]">{activeRoute.sourcePropertyAddress}</span>
+              <span style={{ color: colors.whiteMuted }}>· Click to reopen details</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Building footprints legend — fixed bottom-right of map (left of 360px panel on desktop) */}
       {activeOverlays.has('structures') && (

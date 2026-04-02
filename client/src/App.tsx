@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { DashboardLayout } from './components/Layout/DashboardLayout';
 import { LeftPanel } from './components/LeftPanel/LeftPanel';
 import { CenterPanel } from './components/CenterPanel/CenterPanel';
@@ -56,6 +56,69 @@ export default function App() {
     return true;
   });
 
+  const [routeRequest, setRouteRequest] = useState<{
+    from: [number, number];
+    to: [number, number];
+    toCoordinates: [number, number];
+    toName: string;
+    toAddress: string;
+    sourcePropertyId: string;
+    sourcePropertyAddress: string;
+  } | null>(null);
+  const [activeRoute, setActiveRoute] = useState<{
+    geometry: { type: 'LineString'; coordinates: [number, number][] };
+    toCoordinates: [number, number];
+    toName: string;
+    toAddress: string;
+    sourcePropertyId: string;
+    sourcePropertyAddress: string;
+  } | null>(null);
+  const [reopenTrigger, setReopenTrigger] = useState<{ id: string; ts: number } | null>(null);
+
+  useEffect(() => {
+    if (!routeRequest) { setActiveRoute(null); return; }
+    const { from, to, toCoordinates, toName, toAddress, sourcePropertyId, sourcePropertyAddress } = routeRequest;
+    const token = import.meta.env.VITE_MAPBOX_TOKEN as string;
+    fetch(
+      `https://api.mapbox.com/directions/v5/mapbox/walking/${from[0]},${from[1]};${to[0]},${to[1]}?geometries=geojson&overview=full&access_token=${token}`
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        const geom = d.routes?.[0]?.geometry as { type: 'LineString'; coordinates: [number, number][] } | undefined;
+        if (geom) setActiveRoute({ geometry: geom, toCoordinates, toName, toAddress, sourcePropertyId, sourcePropertyAddress });
+      })
+      .catch(console.error);
+  }, [routeRequest]);
+
+  const handleShowRoute = useCallback((
+    from: [number, number],
+    to: [number, number],
+    toName: string,
+    toAddress: string,
+    sourcePropertyId: string,
+    sourcePropertyAddress: string,
+  ) => {
+    setRouteRequest({ from, to, toCoordinates: to, toName, toAddress, sourcePropertyId, sourcePropertyAddress });
+  }, []);
+
+  const handleClearRoute = useCallback(() => {
+    setRouteRequest(null);
+    setActiveRoute(null);
+  }, []);
+
+  const handleReopenDetail = useCallback(() => {
+    if (activeRoute?.sourcePropertyId) {
+      setReopenTrigger({ id: activeRoute.sourcePropertyId, ts: Date.now() });
+      setRouteRequest(null);
+      setActiveRoute(null);
+    }
+  }, [activeRoute]);
+
+  // Called by RightPanel immediately after it consumes the trigger — prevents repeated re-opens
+  const handleReopenHandled = useCallback(() => {
+    setReopenTrigger(null);
+  }, []);
+
   const netMonthlyMap = useMemo(() => {
     if (mapPriceMode !== 'netMonthly') return null;
     const map = new Map<string, number>();
@@ -78,6 +141,9 @@ export default function App() {
           onMarkerScreenPosition={handleMarkerScreenPosition}
           mapPriceMode={mapPriceMode}
           netMonthlyMap={netMonthlyMap}
+          activeRoute={activeRoute}
+          onClearRoute={handleClearRoute}
+          onReopenDetail={handleReopenDetail}
         />
       </div>
 
@@ -143,6 +209,9 @@ export default function App() {
           onSelectProperty={handleSelectProperty}
           loading={loading}
           onCardAnchorChange={handleCardAnchorChange}
+          onShowRoute={handleShowRoute}
+          reopenTrigger={reopenTrigger}
+          onReopenHandled={handleReopenHandled}
         />
       </div>
 

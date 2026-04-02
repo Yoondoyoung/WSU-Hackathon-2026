@@ -12,6 +12,15 @@ interface Props {
   onMarkerScreenPosition?: (pos: { x: number; y: number } | null) => void;
   mapPriceMode: MapPriceMode;
   netMonthlyMap: Map<string, number> | null;
+  activeRoute?: {
+    geometry: { type: 'LineString'; coordinates: [number, number][] };
+    toCoordinates: [number, number];
+    toName: string;
+    toAddress: string;
+    sourcePropertyAddress: string;
+  } | null;
+  onClearRoute?: () => void;
+  onReopenDetail?: () => void;
 }
 
 export function CenterPanel(props: Props) {
