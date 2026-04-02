@@ -280,6 +280,24 @@ function MapViewInner({ viewMode, activeOverlays, properties, selectedId, onSele
     }
   }, [selectedId, properties]);
 
+  // Fit map to show full walking route when activeRoute is set
+  useEffect(() => {
+    if (!activeRoute || !mapRef.current) return;
+    const coords = activeRoute.geometry.coordinates;
+    if (coords.length === 0) return;
+    const lngs = coords.map((c) => c[0]);
+    const lats = coords.map((c) => c[1]);
+    const bbox: [number, number, number, number] = [
+      Math.min(...lngs), Math.min(...lats),
+      Math.max(...lngs), Math.max(...lats),
+    ];
+    mapRef.current.fitBounds(bbox, {
+      padding: { top: 150, bottom: 150, left: 500, right: 500 },
+      duration: 800,
+      essential: true,
+    });
+  }, [activeRoute]);
+
   // rAF loop: report selected marker screen position
   useEffect(() => {
     if (!onMarkerScreenPosition) return;
