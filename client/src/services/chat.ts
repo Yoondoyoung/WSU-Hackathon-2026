@@ -11,11 +11,29 @@ export interface ChatResponse {
   message: string;
   /** Present when the model invoked `search_listings` in this request (may be empty). */
   listingIds?: string[];
+  filterPatch?: ChatFilterPatch;
+  unsupportedConstraints?: string[];
 }
 
 export interface ChatPostResult {
   message: string;
   listingIds?: string[];
+  filterPatch?: ChatFilterPatch;
+  unsupportedConstraints?: string[];
+}
+
+export type CrimeRiskFilter = 'any' | 'low' | 'medium' | 'high';
+export type SchoolAgeFilter = 'elementary' | 'middle' | 'high';
+
+export interface ChatFilterPatch {
+  min_price?: number;
+  max_price?: number;
+  min_beds?: number;
+  min_baths?: number;
+  crime_risk?: CrimeRiskFilter;
+  school_age_groups?: SchoolAgeFilter[];
+  school_radius_miles?: number;
+  grocery_radius_miles?: number;
 }
 
 /** Slim payload for the server system prompt (keeps request size reasonable). */
@@ -69,15 +87,19 @@ export function serializePropertyForChat(p: Property): Record<string, unknown> {
 
 export async function postChat(
   messages: ChatMessage[],
-  options?: { focusedProperty?: Property | null; compareProperties?: Property[] | null },
+  options?: { focusedProperty?: Property | null; mode?: 'browse' | 'guided'; compareProperties?: Property[] | null },
 ): Promise<ChatPostResult> {
   const body: {
     messages: ChatMessage[];
     focusedProperty?: Record<string, unknown>;
+    mode?: 'browse' | 'guided';
     compareProperties?: Record<string, unknown>[];
   } = { messages };
   if (options?.focusedProperty) {
     body.focusedProperty = serializePropertyForChat(options.focusedProperty);
+  }
+  if (options?.mode) {
+    body.mode = options.mode;
   }
   if (options?.compareProperties && options.compareProperties.length >= 2) {
     body.compareProperties = options.compareProperties.map((p) => serializePropertyForChat(p));
@@ -94,5 +116,10 @@ export async function postChat(
   if (!data.message) {
     throw new Error('No message in response');
   }
-  return { message: data.message, listingIds: data.listingIds };
+  return {
+    message: data.message,
+    listingIds: data.listingIds,
+    filterPatch: data.filterPatch,
+    unsupportedConstraints: data.unsupportedConstraints,
+  };
 }
