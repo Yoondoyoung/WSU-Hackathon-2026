@@ -22,14 +22,17 @@ export function ChatAssistant() {
     await sendUserMessage(t);
   }
 
+  /** Sit above map, to the left of the 360px listings panel + gutter */
+  const mapRightOffset = 'calc(360px + 1.5rem)';
+
   return (
     <>
-      {/* FAB — bottom-left to avoid 360px right panel */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="absolute z-[35] bottom-6 left-6 flex items-center justify-center w-12 h-12 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95"
+        className="absolute z-[35] bottom-6 flex items-center justify-center w-12 h-12 rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95"
         style={{
+          right: mapRightOffset,
           background: `linear-gradient(135deg, ${colors.cyan}30, #6366f150)`,
           border: `1px solid ${colors.cyan}50`,
           boxShadow: `0 4px 20px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)`,
@@ -41,9 +44,10 @@ export function ChatAssistant() {
 
       {open && (
         <div
-          className="absolute z-[35] bottom-24 left-6 flex flex-col overflow-hidden rounded-2xl shadow-2xl"
+          className="absolute z-[35] bottom-24 flex flex-col overflow-hidden rounded-2xl shadow-2xl"
           style={{
-            width: 'min(380px, calc(100vw - 400px))',
+            right: mapRightOffset,
+            width: 'min(380px, calc(100vw - 360px - 3rem))',
             maxHeight: 'min(480px, 70vh)',
             ...glass.panelDense,
             borderRadius: 16,
