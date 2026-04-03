@@ -11,6 +11,7 @@ import { useMapState } from './hooks/useMapState';
 import { useProperties } from './hooks/useProperties';
 import { glass, colors } from './design';
 import { calcTCO, TCO_DEFAULTS, type TcoInputs } from './utils/tcoCalculator';
+import type { Property } from './types/property';
 
 const SNAP_THRESHOLD = 120;        // px — float-card to float-card
 const COMPARE_H_APPROX = 460;      // px — estimated compare view height for proximity detection
@@ -29,6 +30,8 @@ export default function App() {
   const [tcoInputs, setTcoInputs] = useState<TcoInputs>(TCO_DEFAULTS);
   const [minBeds, setMinBeds] = useState(0);
   const [minBaths, setMinBaths] = useState(0);
+  /** When set, map + list show only these IDs (from chat search_listings). `null` = use slider filters. */
+  const [chatListingIds, setChatListingIds] = useState<string[] | null>(null);
 
   /** Refs only — no setState at 60fps (prevents map jitter from full-tree re-renders). */
   const markerPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -67,6 +70,25 @@ export default function App() {
     }
     return true;
   });
+
+  const visibleProperties = useMemo(() => {
+    if (chatListingIds === null) return filteredProperties;
+    const byId = new Map(properties.map((p) => [p.id, p] as const));
+    return chatListingIds
+      .map((id) => byId.get(id))
+      .filter((p): p is Property => p != null);
+  }, [chatListingIds, properties, filteredProperties]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    if (!visibleProperties.some((p) => p.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [selectedId, visibleProperties]);
+
+  const handleChatListingResult = useCallback((listingIds: string[] | undefined) => {
+    if (listingIds !== undefined) setChatListingIds(listingIds);
+  }, []);
 
   const [routeRequest, setRouteRequest] = useState<{
     from: [number, number];
@@ -252,11 +274,16 @@ export default function App() {
   const netMonthlyMap = useMemo(() => {
     if (mapPriceMode !== 'netMonthly') return null;
     const map = new Map<string, number>();
-    for (const p of filteredProperties) {
+    for (const p of visibleProperties) {
       map.set(p.id, calcTCO(p, tcoInputs).netMonthly);
     }
     return map;
-  }, [filteredProperties, mapPriceMode, tcoInputs]);
+  }, [visibleProperties, mapPriceMode, tcoInputs]);
+
+  const chatFocusedProperty = useMemo(
+    () => (selectedId ? properties.find((p) => p.id === selectedId) ?? null : null),
+    [selectedId, properties],
+  );
 
   return (
     <DashboardLayout>
@@ -269,7 +296,7 @@ export default function App() {
         <CenterPanel
           viewMode={mapState.viewMode}
           activeOverlays={mapState.activeOverlays}
-          properties={filteredProperties}
+          properties={visibleProperties}
           selectedId={selectedId}
           onSelectProperty={handleSelectProperty}
           onMarkerScreenPosition={handleMarkerScreenPosition}
@@ -340,7 +367,7 @@ export default function App() {
       {/* Right panel — always visible */}
       <div className="absolute right-0 top-0 bottom-0 z-20 w-[360px]">
         <RightPanel
-          properties={filteredProperties}
+          properties={visibleProperties}
           selectedId={selectedId}
           onSelectProperty={handleSelectProperty}
           loading={loading}
@@ -351,6 +378,8 @@ export default function App() {
           reopenTrigger={reopenTrigger}
           onReopenHandled={handleReopenHandled}
           floatingCardIds={floatingCardIds}
+          chatListViewActive={chatListingIds !== null}
+          onClearChatListView={() => setChatListingIds(null)}
         />
       </div>
 
@@ -393,7 +422,7 @@ export default function App() {
         })()}
       </div>
 
-      <ChatAssistant />
+      <ChatAssistant focusedProperty={chatFocusedProperty} onChatListingResult={handleChatListingResult} />
 
     </DashboardLayout>
   );

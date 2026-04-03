@@ -37,6 +37,9 @@ interface Props {
   onReopenHandled?: () => void;
   /** IDs of cards currently detached as floating windows on the map */
   floatingCardIds?: Set<string>;
+  /** When true, list/map are scoped to chat search results */
+  chatListViewActive?: boolean;
+  onClearChatListView?: () => void;
 }
 
 /* ─── Badge ────────────────────────────────────────────────── */
@@ -483,7 +486,10 @@ export function RightPanel({
   onTcoInputsChange,
   onShowRoute,
   reopenTrigger,
-  onReopenHandled, floatingCardIds,
+  onReopenHandled,
+  floatingCardIds,
+  chatListViewActive,
+  onClearChatListView,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedCardRef = useRef<HTMLDivElement>(null);
@@ -578,6 +584,24 @@ export function RightPanel({
           <p className="text-[10px] mt-0.5" style={{ color: colors.whiteMuted }}>
             {loading ? 'Loading...' : `${properties.length} listings`}
           </p>
+          {chatListViewActive && onClearChatListView && (
+            <div
+              className="mt-3 flex items-center justify-between gap-2 rounded-lg px-2.5 py-2"
+              style={{ background: `${colors.cyan}12`, border: `1px solid ${colors.cyan}35` }}
+            >
+              <span className="text-[10px] font-medium leading-snug" style={{ color: colors.whiteMuted }}>
+                Showing chat search results
+              </span>
+              <button
+                type="button"
+                onClick={onClearChatListView}
+                className="flex-shrink-0 text-[10px] font-semibold px-2 py-1 rounded-md"
+                style={{ color: colors.cyan, background: `${colors.cyan}18`, border: `1px solid ${colors.cyan}40` }}
+              >
+                All listings
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Scrollable list */}
@@ -602,8 +626,10 @@ export function RightPanel({
           })}
 
           {!loading && properties.length === 0 && (
-            <div className="flex items-center justify-center h-32">
-              <p className="text-xs" style={{ color: colors.whiteSubtle }}>No properties match your filters</p>
+            <div className="flex items-center justify-center h-32 px-2 text-center">
+              <p className="text-xs" style={{ color: colors.whiteSubtle }}>
+                {chatListViewActive ? 'No listings match the chat search' : 'No properties match your filters'}
+              </p>
             </div>
           )}
         </div>

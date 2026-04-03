@@ -2,11 +2,17 @@ import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Loader2, Trash2 } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { colors, glass } from '../../design';
+import type { Property } from '../../types/property';
 
-export function ChatAssistant() {
+interface Props {
+  focusedProperty?: Property | null;
+  onChatListingResult?: (listingIds: string[] | undefined) => void;
+}
+
+export function ChatAssistant({ focusedProperty = null, onChatListingResult }: Props) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
-  const { messages, loading, error, sendUserMessage, clear } = useChat();
+  const { messages, loading, error, sendUserMessage, clear } = useChat(focusedProperty, onChatListingResult);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,9 +63,13 @@ export function ChatAssistant() {
             className="flex items-center justify-between px-4 py-3 border-b"
             style={{ borderColor: colors.border }}
           >
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-bold" style={{ color: colors.white }}>Mortgage &amp; Real Estate</p>
-              <p className="text-[10px] mt-0.5" style={{ color: colors.whiteMuted }}>Ask about loans, buying, or Salt Lake listings</p>
+              <p className="text-[10px] mt-0.5 truncate" style={{ color: colors.whiteMuted }} title={focusedProperty?.address}>
+                {focusedProperty
+                  ? `Focused: ${focusedProperty.address}`
+                  : 'Ask about loans, listings search, or select a home on the map'}
+              </p>
             </div>
             <button
               type="button"
@@ -78,7 +88,7 @@ export function ChatAssistant() {
           >
             {messages.length === 0 && !loading && (
               <p className="text-xs leading-relaxed px-1" style={{ color: colors.whiteMuted }}>
-                I can help with mortgages, refinancing, down payments, DTI, and local real estate questions. What would you like to know?
+                Ask about this listing when one is selected, search homes (e.g. “3 bed under $500k near 84106”), or mortgages and buying. What would you like to know?
               </p>
             )}
             {messages.map((m, i) => (

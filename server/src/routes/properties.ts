@@ -51,6 +51,11 @@ async function loadPropertiesFromSupabase(): Promise<GenericRow[]> {
   return cachedProperties;
 }
 
+/** Same in-memory payloads as GET / — used by the chat `search_listings` tool. */
+export async function getPropertyPayloadsForChat(): Promise<GenericRow[]> {
+  return loadPropertiesFromSupabase();
+}
+
 propertiesRouter.get('/', async (_req, res) => {
   try {
     const properties = await loadPropertiesFromSupabase();

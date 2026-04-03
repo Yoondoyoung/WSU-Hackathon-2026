@@ -1,7 +1,11 @@
 import { useState, useCallback } from 'react';
 import { postChat, type ChatMessage } from '../services/chat';
+import type { Property } from '../types/property';
 
-export function useChat() {
+export function useChat(
+  focusedProperty: Property | null,
+  onChatListingResult?: (listingIds: string[] | undefined) => void,
+) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,8 +21,9 @@ export function useChat() {
 
     try {
       const history = [...messages, userMsg];
-      const reply = await postChat(history);
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      const reply = await postChat(history, { focusedProperty });
+      setMessages((prev) => [...prev, { role: 'assistant', content: reply.message }]);
+      onChatListingResult?.(reply.listingIds);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Something went wrong';
       setError(msg);
@@ -26,7 +31,7 @@ export function useChat() {
     } finally {
       setLoading(false);
     }
-  }, [messages, loading]);
+  }, [messages, loading, focusedProperty, onChatListingResult]);
 
   const clear = useCallback(() => {
     setMessages([]);

@@ -1,11 +1,14 @@
 import { Router } from 'express';
 import OpenAI from 'openai';
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
+import { getPropertyPayloadsForChat } from './properties.js';
 
 export const CHAT_SYSTEM_PROMPT =
   'You are a mortgage expert and a real estate expert. Help users by answering their questions about mortgages, real estate, home buying, and closely related financial topics. If a question is outside this scope, politely decline: you cannot answer questions that are outside your area of expertise.';
 
 const MAX_MESSAGES = 24;
 const MAX_TOTAL_CHARS = 12000;
+const MAX_TOOL_ROUNDS = 5;
 
 type ChatRole = 'user' | 'assistant';
 
@@ -13,6 +16,127 @@ interface IncomingMessage {
   role: ChatRole;
   content: string;
 }
+
+type GenericRow = Record<string, unknown>;
+
+interface SearchListingsArgs {
+  query?: string;
+  min_price?: number;
+  max_price?: number;
+  min_beds?: number;
+  max_beds?: number;
+  limit?: number;
+}
+
+function num(row: GenericRow, key: string): number {
+  const v = row[key];
+  if (typeof v === 'number' && !Number.isNaN(v)) return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+}
+
+function str(row: GenericRow, key: string): string {
+  const v = row[key];
+  return typeof v === 'string' ? v : v != null ? String(v) : '';
+}
+
+function searchListings(rows: GenericRow[], args: SearchListingsArgs): { listings: object[]; total_matched: number } {
+  const limit = Math.min(15, Math.max(1, args.limit ?? 8));
+  let filtered = rows.filter((row) => {
+    const price = num(row, 'price');
+    if (args.min_price != null && price < args.min_price) return false;
+    if (args.max_price != null && price > args.max_price) return false;
+    const beds = num(row, 'beds');
+    if (args.min_beds != null && beds < args.min_beds) return false;
+    if (args.max_beds != null && beds > args.max_beds) return false;
+    return true;
+  });
+
+  const q = args.query?.trim().toLowerCase();
+  if (q) {
+    const parts = q.split(/\s+/).filter((p) => p.length > 0);
+    filtered = filtered.filter((row) => {
+      const blob = [
+        str(row, 'address'),
+        str(row, 'streetAddress'),
+        str(row, 'city'),
+        str(row, 'state'),
+        str(row, 'zip'),
+        str(row, 'description'),
+        str(row, 'homeType'),
+        str(row, 'propertyType'),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return parts.every((p) => blob.includes(p));
+    });
+  }
+
+  filtered.sort((a, b) => num(a, 'price') - num(b, 'price'));
+  const total_matched = filtered.length;
+  const slice = filtered.slice(0, limit);
+  const listings = slice.map((row) => ({
+    id: str(row, 'id'),
+    address: str(row, 'address'),
+    city: str(row, 'city'),
+    state: str(row, 'state'),
+    zip: str(row, 'zip'),
+    price: num(row, 'price'),
+    beds: num(row, 'beds'),
+    baths: num(row, 'baths'),
+    sqft: num(row, 'sqft'),
+    homeType: str(row, 'homeType') || str(row, 'propertyType'),
+    detailUrl: str(row, 'detailUrl'),
+  }));
+
+  return { listings, total_matched };
+}
+
+function buildSystemPrompt(focusedProperty: unknown): string {
+  let base =
+    CHAT_SYSTEM_PROMPT +
+    '\n\nYou can call the search_listings tool to find real homes from the app’s Salt Lake area listing database. When the user asks for homes matching price, beds, or location keywords, use the tool and summarize matches. If nothing matches, say so and suggest adjusting filters. Describe only listings returned by the tool; do not invent addresses or prices.';
+
+  if (
+    focusedProperty &&
+    typeof focusedProperty === 'object' &&
+    !Array.isArray(focusedProperty) &&
+    Object.keys(focusedProperty as object).length > 0
+  ) {
+    base +=
+      '\n\n## Currently selected listing\nThe user has this property selected on the map. When they say "this home", "this listing", "this property", or "it" (about a listing), answer using these facts:\n' +
+      JSON.stringify(focusedProperty) +
+      '\n\nUse only information present here. If something is not included, say you do not have that detail in the listing data.';
+  }
+
+  return base;
+}
+
+const SEARCH_LISTINGS_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'search_listings',
+    description:
+      'Search property listings in the database by optional text keywords (address, city, zip, description, home type) and numeric filters. Use when the user wants to find or compare homes.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Space-separated keywords; all words should appear somewhere in listing text (e.g. zip code, street, neighborhood name).',
+        },
+        min_price: { type: 'number', description: 'Minimum list price in USD' },
+        max_price: { type: 'number', description: 'Maximum list price in USD' },
+        min_beds: { type: 'integer', description: 'Minimum bedrooms' },
+        max_beds: { type: 'integer', description: 'Maximum bedrooms' },
+        limit: { type: 'integer', description: 'Max number of listings to return (default 8, max 15)' },
+      },
+    },
+  },
+};
 
 export const chatRouter = Router();
 
@@ -23,7 +147,7 @@ chatRouter.post('/chat', async (req, res) => {
     return;
   }
 
-  const { messages: raw } = req.body as { messages?: unknown };
+  const { messages: raw, focusedProperty } = req.body as { messages?: unknown; focusedProperty?: unknown };
   if (!Array.isArray(raw)) {
     res.status(400).json({ error: 'Request body must include messages: array' });
     return;
@@ -44,8 +168,10 @@ chatRouter.post('/chat', async (req, res) => {
     return;
   }
 
+  const systemContent = buildSystemPrompt(focusedProperty ?? null);
+
   const recent = parsed.slice(-MAX_MESSAGES);
-  let total = CHAT_SYSTEM_PROMPT.length;
+  let total = systemContent.length;
   const trimmed: IncomingMessage[] = [];
   for (let i = recent.length - 1; i >= 0; i--) {
     const add = recent[i].content.length + 4;
@@ -56,23 +182,96 @@ chatRouter.post('/chat', async (req, res) => {
 
   const openai = new OpenAI({ apiKey });
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: CHAT_SYSTEM_PROMPT },
-        ...trimmed.map((m) => ({ role: m.role, content: m.content })),
-      ],
-      max_tokens: 1024,
-    });
+  let rows: GenericRow[] | null = null;
+  async function getRows(): Promise<GenericRow[]> {
+    if (!rows) rows = (await getPropertyPayloadsForChat()) as GenericRow[];
+    return rows;
+  }
 
-    const text = completion.choices[0]?.message?.content?.trim();
-    if (!text) {
-      res.status(502).json({ error: 'Empty response from model' });
+  const messages: ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemContent },
+    ...trimmed.map((m) => ({ role: m.role, content: m.content })),
+  ];
+
+  let searchListingsInvoked = false;
+  const accumulatedListingIds: string[] = [];
+  const seenIds = new Set<string>();
+
+  function appendListingIdsFromResult(listings: object[]) {
+    searchListingsInvoked = true;
+    for (const item of listings) {
+      const id =
+        item && typeof item === 'object' && 'id' in item && typeof (item as { id: unknown }).id === 'string'
+          ? (item as { id: string }).id
+          : '';
+      if (!id || seenIds.has(id)) continue;
+      seenIds.add(id);
+      accumulatedListingIds.push(id);
+    }
+  }
+
+  try {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages,
+        tools: [SEARCH_LISTINGS_TOOL],
+        tool_choice: 'auto',
+        max_tokens: 1024,
+      });
+
+      const choice = completion.choices[0]?.message;
+      if (!choice) {
+        res.status(502).json({ error: 'Empty response from model' });
+        return;
+      }
+
+      const toolCalls = choice.tool_calls;
+      if (toolCalls?.length) {
+        messages.push(choice);
+        for (const tc of toolCalls) {
+          if (tc.type !== 'function') continue;
+          if (tc.function.name !== 'search_listings') {
+            messages.push({
+              role: 'tool',
+              tool_call_id: tc.id,
+              content: JSON.stringify({ error: 'unknown_tool' }),
+            });
+            continue;
+          }
+          let args: SearchListingsArgs = {};
+          try {
+            args = JSON.parse(tc.function.arguments || '{}') as SearchListingsArgs;
+          } catch {
+            args = {};
+          }
+          const data = await getRows();
+          const result = searchListings(data, args);
+          appendListingIdsFromResult(result.listings);
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: JSON.stringify(result),
+          });
+        }
+        continue;
+      }
+
+      const text = choice.content?.trim();
+      if (!text) {
+        res.status(502).json({ error: 'Empty response from model' });
+        return;
+      }
+
+      const payload: { message: string; listingIds?: string[] } = { message: text };
+      if (searchListingsInvoked) {
+        payload.listingIds = accumulatedListingIds;
+      }
+      res.json(payload);
       return;
     }
 
-    res.json({ message: text });
+    res.status(502).json({ error: 'Tool loop limit exceeded' });
   } catch (e) {
     console.error('OpenAI chat error:', e);
     const msg = e instanceof Error ? e.message : 'OpenAI request failed';
