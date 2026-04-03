@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://wsu-hackathon-2026.onrender.com/api/:path*"
+    }
+  ]
+}

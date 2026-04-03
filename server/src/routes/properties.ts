@@ -1,13 +1,10 @@
 import { Router } from 'express';
 import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import geojsonvt from 'geojson-vt';
 import vtpbf from 'vt-pbf';
 import { supabase } from '../lib/supabase.js';
 import { noiseGeojsonWithIntensity } from '../lib/noiseGeojson.js';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
+import { resolveDataFile } from '../paths.js';
 
 export const propertiesRouter = Router();
 
@@ -144,7 +141,7 @@ async function loadNoiseOverlayGeoJSON(): Promise<object> {
   } catch {
     // fall through to file
   }
-  const noisePath = join(__dirname, '..', 'data', 'noise', 'slc_road_noise_lines.geojson');
+  const noisePath = resolveDataFile('noise', 'slc_road_noise_lines.geojson');
   if (!existsSync(noisePath)) {
     throw new Error('noise overlay not in Supabase and slc_road_noise_lines.geojson missing');
   }
@@ -204,8 +201,8 @@ async function loadSchoolsGeoJSON() {
 
 function loadStructuresTileIndex() {
   if (structuresTileIndex) return structuresTileIndex;
-  const fullPath = join(__dirname, '..', 'data', 'overlays', 'structures_polygons.full.geojson');
-  const fallbackPath = join(__dirname, '..', 'data', 'overlays', 'structures_polygons.geojson');
+  const fullPath = resolveDataFile('overlays', 'structures_polygons.full.geojson');
+  const fallbackPath = resolveDataFile('overlays', 'structures_polygons.geojson');
   const filePath = existsSync(fullPath) ? fullPath : fallbackPath;
   const data = JSON.parse(readFileSync(filePath, 'utf-8'));
   structuresTileIndex = geojsonvt(data, {
