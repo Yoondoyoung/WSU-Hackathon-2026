@@ -179,8 +179,11 @@ export function LeftPanel({
         className={`flex items-center gap-3 px-5 py-5 border-b flex-shrink-0 ${collapsed ? 'justify-center px-2' : ''}`}
         style={{ borderBottom: `1px solid ${colors.border}` }}
       >
-        <div className="w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0" style={{ background: `${colors.blue}22`, borderColor: `${colors.blue}44` }}>
-          <Map size={14} style={{ color: colors.blue }} />
+        <div
+          className="w-7 h-7 rounded-lg border flex items-center justify-center flex-shrink-0 overflow-hidden"
+          style={{ background: `${colors.blue}14`, borderColor: `${colors.blue}44` }}
+        >
+          <img src="/main.png" alt="" className="w-full h-full object-cover" width={28} height={28} />
         </div>
 
         {!collapsed && (
