@@ -11,6 +11,8 @@ interface Props {
   onboardingMode: 'pending' | 'browse' | 'guided';
   onChooseBrowse: () => void;
   onChooseGuided: () => void;
+  /** Homes open in Compare view (2–4); passed to the assistant as context. */
+  compareProperties?: Property[] | null;
   onChatListingResult?: (listingIds: string[] | undefined) => void;
   onFilterPatch?: (patch: ChatFilterPatch | undefined) => void;
 }
@@ -21,6 +23,7 @@ export function ChatAssistant({
   onboardingMode,
   onChooseBrowse,
   onChooseGuided,
+  compareProperties = null,
   onChatListingResult,
   onFilterPatch,
 }: Props) {
@@ -42,6 +45,7 @@ export function ChatAssistant({
       onFilterPatch?.(patch);
       if (unsupported?.length) setUnsupportedNotes(unsupported);
     },
+    compareProperties,
   );
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -165,7 +169,9 @@ export function ChatAssistant({
             )}
             {messages.length === 0 && !loading && (
               <p className="text-xs leading-relaxed px-1" style={{ color: colors.whiteMuted }}>
-                {mode === 'guided'
+                {compareProperties && compareProperties.length >= 2
+                  ? 'Ask about these homes side by side (price, schools, crime risk, tradeoffs), search listings, or mortgages. What would you like to know?'
+                  : mode === 'guided'
                   ? 'Share your conditions and I will auto-adjust the left filters. Example: under $700k, 3+ beds, low crime, elementary + middle school within 1 mile.'
                   : 'Ask about this listing when one is selected, search homes (e.g. “3 bed under $500k near 84106”), or mortgages and buying. What would you like to know?'}
               </p>

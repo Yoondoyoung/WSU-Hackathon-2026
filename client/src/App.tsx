@@ -395,6 +395,14 @@ export default function App() {
     [selectedId, properties],
   );
 
+  const chatCompareProperties = useMemo((): Property[] | null => {
+    if (!compareIds || compareIds.length < 2) return null;
+    const list = compareIds
+      .map((id) => properties.find((p) => p.id === id))
+      .filter((p): p is Property => p != null);
+    return list.length >= 2 ? list : null;
+  }, [compareIds, properties]);
+
   return (
     <DashboardLayout>
       {/* Map — full bleed behind panels */}
@@ -550,6 +558,7 @@ export default function App() {
         onChooseGuided={handleChooseGuided}
         onChatListingResult={handleChatListingResult}
         onFilterPatch={handleFilterPatch}
+        compareProperties={chatCompareProperties}
       />
 
     </DashboardLayout>
