@@ -98,7 +98,9 @@ function searchListings(rows: GenericRow[], args: SearchListingsArgs): { listing
 function buildSystemPrompt(focusedProperty: unknown): string {
   let base =
     CHAT_SYSTEM_PROMPT +
-    '\n\nYou can call the search_listings tool to find real homes from the app’s Salt Lake area listing database. When the user asks for homes matching price, beds, or location keywords, use the tool and summarize matches. If nothing matches, say so and suggest adjusting filters. Describe only listings returned by the tool; do not invent addresses or prices.';
+    '\n\nYou can call the search_listings tool to find real homes from the app’s Salt Lake area listing database. When the user asks for homes matching price, beds, or location keywords, use the tool. Describe only listings returned by the tool; do not invent addresses or prices.' +
+    '\n\nAfter search_listings returns results: the app shows those homes in the right-hand list and on the map. Keep your chat reply short (2–4 sentences). Briefly confirm the criteria you used, state roughly how many matches there were (use total_matched from the tool if helpful), and say the matches are shown in the list—do not enumerate addresses, prices, or bed counts in the chat. If there are zero matches, say so in one or two sentences and suggest relaxing filters. Match the user’s language (e.g. Korean if they wrote in Korean).' +
+    '\n\nFor mortgage or general questions that do not require search_listings, answer as usual with appropriate detail.';
 
   if (
     focusedProperty &&
