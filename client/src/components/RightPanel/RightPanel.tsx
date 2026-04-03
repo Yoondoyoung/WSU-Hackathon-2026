@@ -445,15 +445,27 @@ function CompactCard({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold leading-tight" style={{ color: selected ? colors.cyan : colors.white }}>{formatPrice(property.price)}</p>
           <p className="text-[11px] mt-0.5 truncate" style={{ color: colors.whiteMuted }}>{property.streetAddress}</p>
-          <p className="text-[10px] mt-0.5" style={{ color: colors.whiteSubtle }}>
-            {property.beds}bd · {property.baths}ba · {formatSqft(property.sqft)}ft²
-            <span style={{ color: TAG_STYLES[crimeRiskLabel(property.crimeRiskLevel)]?.color ?? colors.whiteSubtle }}>
-              {' · '}{crimeRiskLabel(property.crimeRiskLevel)}
-            </span>
-            <span style={{ color: noiseExposureColor(property.noiseExposureLevel) }}>
-              {' · '}{noiseExposureLabel(property.noiseExposureLevel)}
-            </span>
-          </p>
+          <div className="text-[10px] mt-0.5 space-y-0.5">
+            <p className="m-0" style={{ color: colors.whiteSubtle }}>
+              {property.beds}bd · {property.baths}ba · {formatSqft(property.sqft)}ft²
+            </p>
+            <p className="m-0 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
+              <span
+                style={{
+                  color: TAG_STYLES[crimeRiskLabel(property.crimeRiskLevel)]?.color ?? colors.whiteSubtle,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {crimeRiskLabel(property.crimeRiskLevel)}
+              </span>
+              <span style={{ color: colors.whiteSubtle, flexShrink: 0 }} aria-hidden>
+                ·
+              </span>
+              <span style={{ color: noiseExposureColor(property.noiseExposureLevel), whiteSpace: 'nowrap' }}>
+                {noiseExposureLabel(property.noiseExposureLevel)}
+              </span>
+            </p>
+          </div>
         </div>
 
         {/* Status badge */}
