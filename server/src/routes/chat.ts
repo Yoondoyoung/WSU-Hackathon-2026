@@ -6,8 +6,9 @@ import { getPropertyPayloadsForChat } from './properties.js';
 export const CHAT_SYSTEM_PROMPT =
   'You are a mortgage expert and a real estate expert. Help users by answering their questions about mortgages, real estate, home buying, and closely related financial topics. If a question is outside this scope, politely decline: you cannot answer questions that are outside your area of expertise.';
 
-const MAX_MESSAGES = 24;
-const MAX_TOTAL_CHARS = 12000;
+const MAX_MESSAGES = 40;
+const MAX_TOTAL_CHARS = 80000;
+const MIN_HISTORY_MESSAGES = 12;
 const MAX_TOOL_ROUNDS = 5;
 /** Preview rows sent to the model (token limit). */
 const MAX_LISTING_PREVIEW = 15;
@@ -298,7 +299,7 @@ function buildSystemPrompt(
 
   if (compareList.length >= 2) {
     base +=
-      '\n\n## Compare view (side-by-side)\nThe user has these listings open in the Compare view. Use this data for questions about differences, tradeoffs, "which is better", price, beds, schools, crime risk, or choosing between these homes. Refer to them by address or short labels (e.g. first vs second column order as listed).\n' +
+      '\n\n## Compare view (side-by-side)\nThe user is actively viewing these listings in the Compare view right now. For ANY question about differences, tradeoffs, "which is better", price, beds, schools, crime risk, or choosing between homes — you MUST answer using only these facts:\n' +
       JSON.stringify(compareList) +
       '\n\nUse only facts from this JSON. If the Compare view is present, prefer it for compare-or-choose questions over the single selected listing below.';
   }
@@ -310,7 +311,7 @@ function buildSystemPrompt(
     Object.keys(focusedProperty as object).length > 0
   ) {
     base +=
-      '\n\n## Map-selected listing\nThe user may have this property selected on the map. When they say "this home", "this listing", or "it" (about one listing) and Compare view is not the topic, answer using these facts:\n' +
+      '\n\n## Map-selected listing\nThe user has this property selected on the map right now. When they say "this home", "this listing", "it", "여기", or refer to a single listing, answer using these facts:\n' +
       JSON.stringify(focusedProperty) +
       '\n\nUse only information present here. If something is not included, say you do not have that detail in the listing data.';
   }
@@ -490,7 +491,8 @@ chatRouter.post('/chat', async (req, res) => {
   const trimmed: IncomingMessage[] = [];
   for (let i = recent.length - 1; i >= 0; i--) {
     const add = recent[i].content.length + 4;
-    if (total + add > MAX_TOTAL_CHARS) break;
+    const isWithinMinGuarantee = recent.length - i <= MIN_HISTORY_MESSAGES;
+    if (total + add > MAX_TOTAL_CHARS && !isWithinMinGuarantee) break;
     trimmed.unshift(recent[i]);
     total += add;
   }
